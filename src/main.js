@@ -8,6 +8,7 @@ import { RealmPanel } from './ui/realmPanel.js';
 import { DynastyPanel } from './ui/dynastyPanel.js';
 import { StatsPanel } from './ui/statsPanel.js';
 import { renderGuide } from './ui/guidePanel.js';
+import { Court } from './ui/court.js';
 import { richText, bindLinks, esc } from './ui/util.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -21,7 +22,11 @@ class App {
     this.speed = 3;
     this.tab = 'person';
     this.logFilter = 'all';
-    this.map = new MapView($('#map'), $('#map-tip'), null, { onSelectKingdom: (id) => this.selectKingdom(id, true) });
+    this.map = new MapView($('#map'), $('#map-tip'), null, {
+      onSelectKingdom: (id) => this.selectKingdom(id, true),
+      onSelectPerson: (id) => this.selectPerson(id),
+    });
+    this.court = new Court($('#court'), this);
     this.panels = {
       person: new PersonPanel($('#tab-person'), this),
       family: new FamilyTree($('#tab-family'), this),
@@ -45,6 +50,7 @@ class App {
     // 最初は最も大きな国の王を見せる
     const big = this.world.aliveKingdoms().reduce((a, b) => (this.world.provincesOf(a).length >= this.world.provincesOf(b).length ? a : b));
     this.selectedPerson = big.rulerId;
+    this.map.selectedPerson = big.rulerId;
     this.renderSettings();
     this.renderAll(true);
   }
@@ -82,6 +88,7 @@ class App {
       onDynasty: (id) => this.selectDynasty(id),
     };
     bindLinks($('#log'), links);
+    bindLinks($('#court'), links);
     for (const id of ['#tab-person', '#tab-family', '#tab-realm', '#tab-dynasty']) bindLinks($(id), links);
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName)) {
@@ -98,12 +105,14 @@ class App {
 
   advance(n) {
     for (let i = 0; i < n; i++) this.world.step();
+    this.phase = 1;
     this.renderAll();
   }
 
   _loop() {
     let last = performance.now();
     let acc = 0;
+    this.phase = 1;
     const frame = (t) => {
       const dt = Math.min(0.5, (t - last) / 1000);
       last = t;
@@ -115,8 +124,11 @@ class App {
           acc -= 1;
           n++;
         }
+        if (acc >= 1) acc %= 1;
+        this.phase = acc;
         if (n) this.renderAll();
       } else acc = 0;
+      this.map.frame(t, dt, this.phase);
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -131,6 +143,7 @@ class App {
 
   selectPerson(id) {
     this.selectedPerson = id;
+    this.map.selectedPerson = id;
     const p = this.world.get(id);
     if (p && p.kingdomId != null) this.map.selectedKingdom = null;
     if (this.tab !== 'person' && this.tab !== 'family') this.showTab('person');
@@ -141,6 +154,7 @@ class App {
     this.selectedKingdom = id;
     this.map.selectedKingdom = this.world.kingdoms[id]?.alive ? id : null;
     this.renderMap();
+    this.court.render();
     if (show) this.showTab('realm');
     this.renderLog(true);
   }
@@ -172,6 +186,8 @@ class App {
       <span>君主の近交係数 <b>${h.rulerF.toFixed(3)}</b></span>
       <span>血友病の遺伝子 <b>${(h.freq.hem * 100).toFixed(1)}%</b></span>`;
     this.renderMap();
+    this.map.yearAdvanced(this.playing ? 1000 / this.speed : 0);
+    this.court.render();
     this.renderLog(fresh);
     this.renderPanel();
   }

@@ -58,6 +58,9 @@ export class World {
     this.wars = [];
     this.nextWarId = 1;
     this.log = [];
+    // 地図に出す出来事（場所つき）。fxSeq は通し番号で、UI はどこまで見たかをこれで覚える
+    this.fx = [];
+    this.fxSeq = 0;
     this.history = [];
     this.truces = new Map();
     this.alliances = new Set();
@@ -223,6 +226,22 @@ export class World {
 
   kn(k) {
     return `{k:${k.id}}`;
+  }
+
+  // その人が暮らしている地方：王族は首都、諸侯の家は本拠、それ以外は首都
+  homeProvince(p) {
+    const k = this.kingdomOf(p);
+    if (!k) return null;
+    if (p.rulerOf != null) return this.kingdoms[p.rulerOf].capital;
+    const d = this.dyn(p);
+    if (d && this.provinces[d.homeProvinceId]?.ownerId === p.kingdomId && !(k.alive && this.ruler(k)?.dynastyId === d.id)) return d.homeProvinceId;
+    return k.capital;
+  }
+
+  _fx(kind, provinceId, personId = null, important = false) {
+    if (provinceId == null) return;
+    this.fx.push({ seq: this.fxSeq++, year: this.year, kind, provinceId, personId, important });
+    if (this.fx.length > 600) this.fx.splice(0, 200);
   }
 
   addLog(kind, text, kingdomIds = []) {
@@ -578,7 +597,10 @@ export class World {
     p.alive = false;
     p.deathYear = this.year;
     p.cause = cause;
-    if (!silent) this.stats.deaths[cause] = (this.stats.deaths[cause] ?? 0) + 1;
+    if (!silent) {
+      this.stats.deaths[cause] = (this.stats.deaths[cause] ?? 0) + 1;
+      this._fx('death', this.homeProvince(p), p.id, p.rulerOf != null);
+    }
     const sp = p.spouseId != null ? this.get(p.spouseId) : null;
     if (sp && sp.spouseId === p.id) sp.spouseId = null;
     if (silent) return;
@@ -807,6 +829,7 @@ export class World {
       d.everRuled = true;
       d.prestige += 20;
     }
+    this._fx('crown', k.capital, p.id, true);
     k.rulers.push({
       id: p.id,
       name: p.regnal,
@@ -992,6 +1015,7 @@ export class World {
     // 住む国：ふつうは夫の国、女系婚なら妻の国。君主は動かない
     const [mover, stay] = matrilineal ? [m, w] : [w, m];
     if (mover.rulerOf == null) mover.kingdomId = stay.kingdomId;
+    this._fx('marriage', this.homeProvince(stay), stay.id, m.rulerOf != null || w.rulerOf != null || mHeir || wHeir);
     const phi = this.ped.kinship(m.id, w.id);
     const mk = this.royalOf(m);
     const wk = this.royalOf(w);
@@ -1061,6 +1085,7 @@ export class World {
       name: this._childName(z.sex, w, h, culture, dynastyId),
     });
     this.stats.births++;
+    this._fx('birth', this.homeProvince(c), c.id, h.rulerOf != null || w.rulerOf != null);
     const rk = this.royalOf(c);
     if (rk && (h.rulerOf != null || w.rulerOf != null)) {
       const F = c.F >= 0.05 ? `近交係数 ${c.F.toFixed(3)}。` : '';
@@ -1340,6 +1365,7 @@ export class World {
     this.stats.battles++;
     const battle = { year: this.year, name: `${field ? field.name : ''}の戦い`, field: field ? field.id : null, attackerWon: aWins, cA: cA?.id, cD: cD?.id, margin };
     w.battles.push(battle);
+    if (field) this._fx('battle', field.id, null, margin > 0.35);
     const dead = [];
     const risk = (p, base) => {
       if (!p || !p.alive) return;

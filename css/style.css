@@ -838,3 +838,105 @@ table.list tr.click:hover td {
   font-size: 13px;
   color: var(--text-2);
 }
+
+/* ───── 宮廷 ───── */
+.court {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px 12px;
+  margin-bottom: 12px;
+}
+
+.court-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.court-head h2 {
+  margin: 0 0 6px;
+}
+
+.court-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  align-items: flex-end;
+}
+
+.courtier {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 84px;
+  padding: 6px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.3;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.courtier.ruler {
+  width: 96px;
+}
+
+.courtier:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  transform: translateY(-2px);
+}
+
+.courtier.sel {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.courtier .portrait {
+  margin-bottom: 3px;
+}
+
+.c-role {
+  color: var(--succession);
+  font-weight: 600;
+}
+
+.c-name {
+  font-weight: 700;
+  color: var(--text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c-age {
+  color: var(--text-3);
+}
+
+/* 新しい年代記の行はふわっと現れる */
+.log li {
+  animation: log-in 0.5s ease-out;
+}
+
+@keyframes log-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+    background: color-mix(in srgb, var(--gold) 18%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log li,
+  .courtier {
+    animation: none;
+    transition: none;
+  }
+}
