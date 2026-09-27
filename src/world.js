@@ -24,8 +24,8 @@ export const LAWS = {
 // 近親婚への考え方。maxPhi 以上の血縁係数の相手とは結婚しない
 export const CUSTOMS = {
   strict: { label: '近親婚を禁じる', desc: 'またいとこより近い相手とは結婚しない。', maxPhi: 1 / 40, kinPenalty: 400, bloodBonus: 0 },
-  moderate: { label: 'いとこ婚まで', desc: 'いとこまでは許されるが、避けられる。', maxPhi: 0.07, kinPenalty: 250, bloodBonus: 0 },
-  royal: { label: '血の純潔を尊ぶ', desc: '王家どうし・一族どうしの結婚を好む。叔父と姪の結婚も許される（ハプスブルク家のように）。', maxPhi: 0.2, kinPenalty: 0, bloodBonus: 160 },
+  moderate: { label: 'いとこ婚まで', desc: 'いとこまでは許されるが、避けられる。', maxPhi: 0.07, kinPenalty: 120, bloodBonus: 0 },
+  royal: { label: '血の純潔を尊ぶ', desc: '王家どうし・一族どうしの結婚を好む。叔父と姪の結婚も許される（ハプスブルク家のように）。', maxPhi: 0.2, kinPenalty: 0, bloodBonus: 400 },
 };
 
 const KINGDOM_COLORS = ['#c0392b', '#2e6fbd', '#d4a017', '#2f9e5b', '#8e44ad', '#d35400', '#16a2a0', '#7f8c8d', '#b0406f', '#556b2f', '#a0522d', '#4b5d9e'];
@@ -447,6 +447,21 @@ export class World {
     }
     // 諸侯の家と所領
     setupFeudal(this);
+    // 王家のうち 2 つに、血友病の保因者の王妃（若ければ）か王女をひそかに置く。そこから王家に広がるかどうか
+    const ks = [...this.kingdoms];
+    for (let i = ks.length - 1; i > 0; i--) {
+      const j = this.rng.int(i + 1);
+      [ks[i], ks[j]] = [ks[j], ks[i]];
+    }
+    for (const k of ks.slice(0, 2)) {
+      const r = this.ruler(k);
+      const queen = r.spouseId != null ? this.get(r.spouseId) : null;
+      const daughters = r.children.map((id) => this.get(id)).filter((c) => c.sex === 'F' && c.alive);
+      const pick = queen && queen.sex === 'F' && this.age(queen) <= 36 ? queen : daughters[0] ?? (r.sex === 'F' ? r : null);
+      if (!pick) continue;
+      pick.genome.m[INDEX.HEM] = 'h';
+      pick.pheno = express(pick.genome, pick.env);
+    }
     this.addLog('event', `${this.year}年、${this.aliveKingdoms().length} つの王国が大陸を分け合っている。`);
   }
 
@@ -573,7 +588,9 @@ export class World {
       if (!p.alive) continue;
       if (p.madOnset != null && !p.mad && this.age(p) >= p.madOnset) {
         p.mad = true;
+        const d = this.dyn(p);
         if (p.rulerOf != null) this.addLog('gene', `${this.pn(p)} が狂気に陥った。（狂気の遺伝子 m を両親から 1 つずつ受け継いでいた）`, [p.rulerOf]);
+        else if (d && this.head(d) === p) this.addLog('gene', `${d.name}家の当主 ${this.pn(p)} が狂気に陥った。`, [p.kingdomId].filter((x) => x != null));
       }
     }
   }
@@ -588,7 +605,7 @@ export class World {
     else if (a < 15) h = 0.007;
     else h = 0.007 + 0.0003 * Math.exp(0.1 * (a - 20 - ph.longevity));
     h *= Math.exp((100 - ph.vigor) / 35);
-    if (ph.hemophilia && p.sex === 'M') h += a < 25 ? 0.05 : 0.03;
+    if (ph.hemophilia && p.sex === 'M') h += a < 25 ? 0.03 : 0.015;
     if (p.mad) h *= 1.3;
     if (this.plague) h += this.plague.severity * (1 - ph.resistance) * 1.6;
     return h;
@@ -967,13 +984,15 @@ export class World {
     political += Math.min(30, (cd ? cd.prestige : 0) * 0.12);
     if (c.lowborn) political -= 25;
     if (sRoyal && cRoyal && sRoyal !== cRoyal && !this.allied(sRoyal.id, cRoyal.id)) political += 18;
+    // 王族は王族と結婚したがる（王家どうしで血が行き来し、やがて王家どうしが親戚になる）
+    if (sRoyal && cRoyal) political += 20;
     let v = wp * political + wl * this.charm(c);
     const ca = this.age(c);
     const sa = this.age(s);
     if (c.sex === 'F') v -= Math.max(0, ca - 27) * (sImportant ? 3 : 1.8);
     v -= Math.max(0, Math.abs(ca - sa) - 10) * 1.2;
     if (c.pheno.hemophilia) v -= 12;
-    if (custom.bloodBonus && s.dynastyId != null && s.dynastyId === c.dynastyId) v += 15 + phi * custom.bloodBonus;
+    if (custom.bloodBonus && s.dynastyId != null && s.dynastyId === c.dynastyId) v += 30 + phi * custom.bloodBonus;
     else if (custom.bloodBonus && sRoyal && cRoyal) v += phi * custom.bloodBonus * 0.6;
     v -= phi * custom.kinPenalty;
     return v;
@@ -1136,6 +1155,9 @@ export class World {
       if (ph.hemophilia) traits.push('血友病');
       if (ph.load > 0) traits.push('虚弱');
       this.addLog('birth', `${this.kn(rk)} の${c.sex === 'M' ? '王子' : '王女'} ${this.pn(c)} が生まれた。${F}${traits.length ? `生まれつき${traits.join('・')}。` : ''}`, [rk.id]);
+    } else if (ph.hemophilia && this.dyn(c) && (this.countiesOf(c.dynastyId).length || rk)) {
+      // 諸侯の家に生まれた血友病の男子も記録する（保因者の母から、どの家へ広がったかが追える）
+      this.addLog('gene', `${this.dyn(c).name}家に血友病の男子 ${this.pn(c)} が生まれた。母 ${this.pn(w)}（${this.dyn(w) ? `${this.dyn(w).name}家の出` : '平民の出'}）が保因者だった。`, [kingdomId].filter((x) => x != null));
     }
   }
 
@@ -1743,6 +1765,7 @@ export class World {
       aliveKingdoms: this.kingdoms.filter((k) => k.alive).length,
       wars: this.wars.filter((w) => !w.ended).length,
       rulerF: mean(rulers, (r) => r.F),
+      cases: { hem: ppl.filter((p) => p.pheno.hemophilia).length, jaw: ppl.filter((p) => p.pheno.jaw).length, mad: ppl.filter((p) => p.mad).length },
       royalF: mean(royals, (r) => r.F),
       nobleF: mean(ppl, (p) => p.F),
       freq: {

@@ -188,7 +188,7 @@ class App {
       <span>家 <b>${w.dynasties.filter((d) => !d.extinct).length}</b></span>
       <span>戦争 <b>${wars}</b></span>
       <span>君主の近交係数 <b>${h.rulerF.toFixed(3)}</b></span>
-      <span>血友病の遺伝子 <b>${(h.freq.hem * 100).toFixed(1)}%</b></span>`;
+      <span>いま生きている患者：血友病 <b>${h.cases.hem}</b>・受け口 <b>${h.cases.jaw}</b>・狂気 <b>${h.cases.mad}</b></span>`;
     this.renderMap();
     this.map.yearAdvanced(this.playing ? 1000 / this.speed : 0);
     this.court.render();

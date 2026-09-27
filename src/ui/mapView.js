@@ -5,6 +5,7 @@
 //   誕生・結婚・死・即位・会戦はその場所にアイコンが浮かぶ。
 
 import { cssVar } from './charts.js';
+import { isCarrier } from '../genes.js';
 
 const CELL = 10;
 const FX_ICON = { birth: '👶', marriage: '💍', death: '✝', crown: '👑', battle: '⚔️' };
@@ -154,6 +155,8 @@ export class MapView {
       }
       case 'origin':
         return hexToRgb(w.kingdoms[pr.origin]?.color ?? '#999999');
+      case 'genes':
+        return lerpRgb(hexToRgb(k ? k.color : '#999999'), [214, 208, 196], 0.7);
       case 'pop':
         return lerpRgb(hexToRgb('#f1e7c9'), hexToRgb('#7a3b12'), Math.min(1, pr.pop / (pr.area * 1.6)));
       case 'devastation':
@@ -182,6 +185,7 @@ export class MapView {
     if (this.mode === 'duchy') return '<span>色と太線＝公爵領（隣り合う伯爵領のまとまり）。伯爵領の過半を持つ家がその公爵になる</span>';
     if (this.mode === 'county') return '<span>色と城の旗＝伯爵領の持ち主の家。王国の色（明るめ）は王の直轄地（王領）。細線＝伯爵領、太線＝国境</span>';
     if (this.mode === 'loyalty') return '<span><span class="sw" style="background:#e3b53a"></span>王領</span><span><span class="sw" style="background:#2f9e5b"></span>忠実な諸侯</span><span><span class="sw" style="background:#e9e1c8"></span>ふつう</span><span><span class="sw" style="background:#c0392b"></span>不満な諸侯（兵を出し渋り、派閥をつくる）</span>';
+    if (this.mode === 'genes') return '<span><span class="sw" style="background:#e0332b"></span>発症（血友病・受け口・狂気の素質・虚弱）</span><span><span class="sw" style="background:#b04fd6"></span>血友病の保因者</span><span><span class="sw" style="background:#d8c4ec"></span>ほかの劣性の保因者</span><span><span class="sw" style="background:#9a9588"></span>なし</span>';
     if (this.mode === 'pop') return '<span>薄い＝人が少ない　濃い＝人が多い（兵力のもと）</span>';
     return '<span>赤いほど最近の戦で荒れている</span>';
   }
@@ -394,7 +398,7 @@ export class MapView {
       r *= 0.4 + 0.6 * grow;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = d.color;
+      ctx.fillStyle = this.mode === 'genes' ? this._geneColor(d.p) : d.color;
       ctx.fill();
       ctx.lineWidth = d.rank >= 2 ? 1.6 : 1;
       ctx.strokeStyle = d.rank >= 2 ? '#f1c94a' : d.rank === 1 ? '#ffffff' : 'rgba(20,15,10,.75)';
@@ -477,6 +481,16 @@ export class MapView {
         }
       }
     }
+  }
+
+  // 遺伝病の地図：発症は赤、血友病の保因者は紫、ほかの劣性の保因者は薄紫、それ以外は灰色
+  _geneColor(p) {
+    const ph = p.pheno;
+    if (ph.hemophilia || ph.jaw || ph.madness || ph.load > 0) return '#e0332b';
+    if (!p.genome) return '#9a9588';
+    if (isCarrier(p.genome, 'HEM')) return '#b04fd6';
+    if (['JAW', 'MAD', 'DEL1', 'DEL2', 'DEL3', 'DEL4'].some((k) => isCarrier(p.genome, k))) return '#d8c4ec';
+    return '#9a9588';
   }
 
   // 小さな城（持ち主の色の旗つき）

@@ -315,7 +315,7 @@ export function express(genome, env = {}) {
   const kindness = clamp100(100 * polyValue(genome, 'kindness') + 12 * e('kindness'));
   const fertility = (0.6 + 0.8 * polyValue(genome, 'fertility')) * (1 - 0.15 * load);
   const longevity = -10 + 20 * polyValue(genome, 'longevity');
-  const vigor = clamp100(100 - 22 * load - (hemophilia ? 30 : 0));
+  const vigor = clamp100(100 - 22 * load - (hemophilia ? 15 : 0));
 
   return {
     hair: seriesTop(genome, 'HAIR'),
