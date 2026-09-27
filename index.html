@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>王家の遺伝子</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>王家の遺伝子</h1>
+        <p>血筋・結婚・継承・戦争。遺伝子を持つ王侯貴族の年代記</p>
+      </div>
+      <div class="clock" aria-live="polite">
+        <span id="clock-year" class="clock-year"></span>
+        <span id="clock-status" class="clock-status"></span>
+      </div>
+      <div class="controls">
+        <button id="btn-play" class="primary" type="button">▶ 再生</button>
+        <button id="btn-step" type="button" title="1年進める">+1年</button>
+        <button id="btn-step10" type="button" title="10年進める">+10年</button>
+        <label class="speed">
+          速度
+          <select id="speed">
+            <option value="1">1年/秒</option>
+            <option value="3" selected>3年/秒</option>
+            <option value="8">8年/秒</option>
+            <option value="25">25年/秒</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="map-col">
+        <div class="map-toolbar">
+          <label>
+            地図
+            <select id="map-mode">
+              <option value="kingdom">王国</option>
+              <option value="dynasty">王朝（王家）</option>
+              <option value="origin">かつての国（出自）</option>
+              <option value="pop">人口</option>
+              <option value="devastation">戦禍</option>
+            </select>
+          </label>
+          <div id="map-legend" class="map-legend"></div>
+        </div>
+        <div class="map-wrap">
+          <canvas id="map" aria-label="大陸の地図。地方をクリックすると王国の詳細が見られます"></canvas>
+          <div id="map-tip" class="map-tip" hidden></div>
+        </div>
+        <div id="quick-stats" class="quick-stats"></div>
+        <div class="events" role="group" aria-label="介入">
+          <span class="events-label">神の介入</span>
+          <button type="button" data-event="plague">🦠 疫病</button>
+          <button type="button" data-event="war">⚔️ 戦乱の時代</button>
+          <button type="button" data-event="peace">🕊️ 平和の時代</button>
+          <button type="button" data-event="hemophilia">🩸 血友病の姫を送り込む</button>
+        </div>
+        <div class="log-wrap">
+          <div class="log-head">
+            <h2>年代記</h2>
+            <select id="log-filter" aria-label="年代記の絞り込み">
+              <option value="all">すべて</option>
+              <option value="major">主な出来事</option>
+              <option value="war">戦争</option>
+              <option value="succession">継承と王朝</option>
+              <option value="marriage">結婚と誕生</option>
+              <option value="gene">遺伝</option>
+              <option value="kingdom">選んだ王国</option>
+            </select>
+          </div>
+          <ol id="log" class="log"></ol>
+        </div>
+      </section>
+
+      <section class="side-col">
+        <nav class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="person" aria-selected="true">人物</button>
+          <button type="button" role="tab" data-tab="family">家系図</button>
+          <button type="button" role="tab" data-tab="realm">王国</button>
+          <button type="button" role="tab" data-tab="dynasty">家</button>
+          <button type="button" role="tab" data-tab="stats">統計</button>
+          <button type="button" role="tab" data-tab="guide">図鑑</button>
+          <button type="button" role="tab" data-tab="settings">設定</button>
+        </nav>
+        <div class="tab-panel" id="tab-person" role="tabpanel"></div>
+        <div class="tab-panel" id="tab-family" role="tabpanel" hidden></div>
+        <div class="tab-panel" id="tab-realm" role="tabpanel" hidden></div>
+        <div class="tab-panel" id="tab-dynasty" role="tabpanel" hidden></div>
+        <div class="tab-panel" id="tab-stats" role="tabpanel" hidden></div>
+        <div class="tab-panel" id="tab-guide" role="tabpanel" hidden></div>
+        <div class="tab-panel" id="tab-settings" role="tabpanel" hidden></div>
+      </section>
+    </main>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
