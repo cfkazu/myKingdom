@@ -238,8 +238,27 @@ export class World {
     const sp = p.spouseId != null ? this.get(p.spouseId) : null;
     if (sp && sp.alive && depth === 0 && (p.sex === 'F' ? !p.matrilineal : p.matrilineal)) return this.homeProvince(sp, 1);
     const d = this.dyn(p);
-    if (d && this.provinces[d.homeProvinceId]?.ownerId === p.kingdomId) return d.homeProvinceId;
-    return k && k.alive ? k.capital : null;
+    if (!d) return k && k.alive ? k.capital : null;
+    // 家が住める土地：王家なら王領、諸侯の家ならその国にある所領。居城（首都）を先頭に
+    const rk = this.kingdoms.find((kk) => kk.alive && kk.rulerId != null && this.ruler(kk).dynastyId === d.id);
+    const seat = rk ? rk.capital : d.homeProvinceId;
+    const lands = rk ? this.demesneOf(rk) : this.provinces.filter((pr) => pr.holder === d.id && pr.ownerId === p.kingdomId);
+    if (!lands.length) return this.provinces[seat]?.ownerId === p.kingdomId ? seat : k && k.alive ? k.capital : null;
+    // 子どもは、同じ家の親と暮らす
+    let a = p;
+    for (let i = 0; i < 4 && this.age(a) < 16; i++) {
+      const f = this.get(a.fatherId);
+      const m = this.get(a.motherId);
+      const parent = f && f.alive && f.dynastyId === d.id ? f : m && m.alive && m.dynastyId === d.id ? m : null;
+      if (!parent) break;
+      a = parent;
+    }
+    // 当主（王）とその親・未婚の子は居城に。きょうだいやいとこの一家は、ほかの所領（王領）に住む
+    const h = rk ? this.ruler(rk) : this.head(d);
+    const core = !h || a === h || ((a.fatherId === h.id || a.motherId === h.id) && a.spouseId == null) || h.fatherId === a.id || h.motherId === a.id;
+    const others = lands.filter((pr) => pr.id !== seat);
+    if (core || !others.length) return lands.some((pr) => pr.id === seat) ? seat : lands[0].id;
+    return others[a.id % others.length].id;
   }
 
   _fx(kind, provinceId, personId = null, important = false) {

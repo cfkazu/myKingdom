@@ -180,7 +180,7 @@ export class MapView {
         .join('');
     }
     if (this.mode === 'duchy') return '<span>色と太線＝公爵領（隣り合う伯爵領のまとまり）。伯爵領の過半を持つ家がその公爵になる</span>';
-    if (this.mode === 'county') return '<span>色＝伯爵領の持ち主の家。王国の色（明るめ）は王の直轄地（王領）。細線＝伯爵領、太線＝国境</span>';
+    if (this.mode === 'county') return '<span>色と城の旗＝伯爵領の持ち主の家。王国の色（明るめ）は王の直轄地（王領）。細線＝伯爵領、太線＝国境</span>';
     if (this.mode === 'loyalty') return '<span><span class="sw" style="background:#e3b53a"></span>王領</span><span><span class="sw" style="background:#2f9e5b"></span>忠実な諸侯</span><span><span class="sw" style="background:#e9e1c8"></span>ふつう</span><span><span class="sw" style="background:#c0392b"></span>不満な諸侯（兵を出し渋り、派閥をつくる）</span>';
     if (this.mode === 'pop') return '<span>薄い＝人が少ない　濃い＝人が多い（兵力のもと）</span>';
     return '<span>赤いほど最近の戦で荒れている</span>';
@@ -347,6 +347,32 @@ export class MapView {
       }
     }
 
+    // 領民（人口の目安：1 点 ≒ 6 千人）と、伯爵領ごとの城
+    if (this.mode !== 'pop') {
+      ctx.fillStyle = 'rgba(40,30,20,.38)';
+      const { W } = w.map;
+      for (const pr of w.provinces) {
+        const list = this.cellsOf[pr.id];
+        if (!list.length) continue;
+        const n = Math.min(40, Math.round(pr.pop / 6));
+        for (let j = 0; j < n; j++) {
+          const c = list[Math.floor(hash01(pr.id * 977 + j) * list.length)];
+          const cx = c % W;
+          const cy = (c - cx) / W;
+          const s = pr.id * 31 + j;
+          const x = (cx + 0.5) * CELL + Math.sin(t * 0.35 + s) * 3.5;
+          const y = (cy + 0.5) * CELL + Math.cos(t * 0.3 + s * 1.3) * 3;
+          ctx.fillRect(x - 0.9, y - 0.9, 1.8, 1.8);
+        }
+      }
+    }
+    for (const pr of w.provinces) {
+      if (w.kingdoms[pr.ownerId]?.capital === pr.id) continue;
+      const c = this._provinceCenter(pr.id);
+      const color = w.isDemesne(pr) ? w.kingdoms[pr.ownerId]?.color ?? '#888' : w.dynasties[pr.holder].color;
+      this._castle(ctx, c.x, c.y - 10, color);
+    }
+
     // 人々
     const follow = Math.min(1, dt * 1.6);
     const sel = this.selectedPerson;
@@ -451,6 +477,44 @@ export class MapView {
         }
       }
     }
+  }
+
+  // 小さな城（持ち主の色の旗つき）
+  _castle(ctx, x, y, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(235,228,212,.92)';
+    ctx.strokeStyle = 'rgba(25,18,12,.85)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-5, 4);
+    ctx.lineTo(-5, -3);
+    ctx.lineTo(-3.5, -3);
+    ctx.lineTo(-3.5, -1.5);
+    ctx.lineTo(-1, -1.5);
+    ctx.lineTo(-1, -3);
+    ctx.lineTo(1, -3);
+    ctx.lineTo(1, -1.5);
+    ctx.lineTo(3.5, -1.5);
+    ctx.lineTo(3.5, -3);
+    ctx.lineTo(5, -3);
+    ctx.lineTo(5, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -3);
+    ctx.lineTo(0, -9);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(5, -7.5);
+    ctx.lineTo(0, -6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   _banner(ctx, x, y, color, t, small = false) {
