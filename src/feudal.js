@@ -54,6 +54,15 @@ export const FeudalMixin = {
     k.capital = pick.id;
   },
 
+  // いまの王家が、この国の王位に続けて就いている年数
+  dynastyYears(k) {
+    const r = this.ruler(k);
+    if (!r) return 0;
+    let since = this.year;
+    for (let i = k.rulers.length - 1; i >= 0 && k.rulers[i].dynastyId === r.dynastyId; i--) since = k.rulers[i].from;
+    return this.year - since;
+  },
+
   demesneLimit(k) {
     const r = this.ruler(k);
     return 2 + Math.floor((r ? this.stewardship(r) : 30) / 22);
@@ -129,6 +138,7 @@ export const FeudalMixin = {
       if (Math.abs(v) >= 1) parts.push([Math.round(v), why]);
     };
     add(10, '基本');
+    if (this.dynastyYears(k) < 10) add(-10, '新しい王朝');
     const phi = this.ped.kinship(h.id, r.id);
     add(Math.min(30, 120 * phi), '王との血縁');
     const royalKin = [r.id, ...r.children, r.fatherId, r.motherId].filter((x) => x != null);
@@ -372,7 +382,10 @@ export const FeudalMixin = {
         if (internal) continue;
         // 十分に強くなったら、反乱を起こす
         const weak = this.weakness(k);
-        const need = kind === 'independence' ? 0.45 : 0.6;
+        // 王位を奪う・すげ替える反乱は、独立よりずっと強くならないと起きない
+        // 正統性：長く続いた王家ほど、王位そのものを狙う反乱は起きにくい（独立には効かない）
+        const legit = 1 + Math.min(0.8, this.dynastyYears(k) / 120);
+        const need = kind === 'independence' ? 0.45 : (kind === 'claimant' ? 0.7 : 0.8) * legit;
         if (ratio < need / Math.sqrt(weak)) continue;
         if (!this.rng.chance(kind === 'claimant' ? 0.3 : 0.2)) continue;
         this._rebel(k, kind, leader, members, others);

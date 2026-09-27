@@ -417,7 +417,7 @@ export class World {
   _setup() {
     const { capitals, owner } = partition(this.rng, this.provinces, this.o.kingdoms);
     const lawKeys = ['agnatic', 'cognatic', 'cognatic', 'absolute', 'elective'];
-    const customKeys = ['strict', 'moderate', 'moderate', 'royal'];
+    const customKeys = ['strict', 'moderate', 'royal', 'royal'];
     const { W, H } = this.map;
     capitals.forEach((cap, i) => {
       const cp = this.provinces[cap];
@@ -718,6 +718,8 @@ export class World {
       let bestS = -Infinity;
       for (const c of list) {
         let s = base(c) + 120 * this.ped.kinship(e.id, c.id) + (c === e ? 15 : 0) + (c.dynastyId === e.dynastyId ? 20 : 0);
+        // 王家の威光：いまの王家の者は選ばれやすい
+        if (ruler && c.dynastyId === ruler.dynastyId) s += 30;
         s -= c.mad ? 30 : 0;
         if (s > bestS) {
           bestS = s;
@@ -1070,7 +1072,10 @@ export class World {
     // 妻が継承者か女王で、夫がそうでなければ、子は妻の家名を継ぐ（女系婚）
     const wHeir = w.rulerOf != null || this.isHeirAnywhere(w);
     const mHeir = m.rulerOf != null || this.isHeirAnywhere(m);
-    const matrilineal = m.dynastyId !== w.dynastyId && ((wHeir && !mHeir) || (m.lowborn && !w.lowborn));
+    // 王の娘が格下の家（王家でない家）に嫁ぐときも、子は王家の名を継ぐ
+    const wRoyalDaughter = this.kingdoms.some((k) => k.alive && k.rulerId != null && (w.fatherId === k.rulerId || w.motherId === k.rulerId));
+    const mLesser = !mHeir && m.rulerOf == null && !this.royalOf(m) && (this.dyn(m)?.prestige ?? 0) < (this.dyn(w)?.prestige ?? 0);
+    const matrilineal = m.dynastyId !== w.dynastyId && ((wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
     this._marry(m, w, matrilineal);
     this.stats.marriages++;
     // 住む国：ふつうは夫の国、女系婚なら妻の国。君主は動かない
@@ -1098,6 +1103,7 @@ export class World {
     const counts = new Map();
     for (const p of this.living) if (p.alive) counts.set(p.kingdomId, (counts.get(p.kingdomId) ?? 0) + 1);
     const moms = this.living.filter((p) => p.alive && p.sex === 'F' && p.spouseId != null);
+    const rulingDyns = new Set(this.aliveKingdoms().map((k) => this.ruler(k)?.dynastyId));
     for (const w of moms) {
       const a = this.age(w);
       if (a < 15 || a > 46 || w.lastBirthYear === this.year) continue;
@@ -1106,9 +1112,11 @@ export class World {
       const af = a < 18 ? 0.6 : a < 30 ? 1 : a < 35 ? 0.8 : a < 40 ? 0.55 : 0.2;
       const k = this.kingdomOf(w);
       const cap = k && k.alive ? clamp((this._nobleCap(k) / Math.max(1, counts.get(k.id) ?? 1)) ** 3, 0.02, 1.3) : 0.3;
-      // 君主と継承者の家は子づくりに熱心
+      // 君主と継承者の家は子づくりに熱心。王家の人々は貴族の人数の上限にしばられない
       const dynastic = w.rulerOf != null || h.rulerOf != null ? 1.3 : 1;
-      const p = 0.42 * w.pheno.fertility * h.pheno.fertility * af * Math.min(1, cap * dynastic) * (w.mad ? 0.7 : 1);
+      const royalHouse = (rulingDyns.has(h.dynastyId) && this.royalOf(h)) || (rulingDyns.has(w.dynastyId) && this.royalOf(w));
+      const room = royalHouse ? Math.max(cap, 0.6) : cap;
+      const p = 0.42 * w.pheno.fertility * h.pheno.fertility * af * Math.min(1.1, room * dynastic) * (w.mad ? 0.7 : 1);
       if (!this.rng.chance(p)) continue;
       this._birth(w, h);
       if (w.alive && this.rng.chance(0.015)) this._birth(w, h, true);
@@ -1128,7 +1136,8 @@ export class World {
       this.stats.stillborn++;
       return;
     }
-    const matri = w.matrilineal && w.spouses.at(-1)?.id === h.id;
+    // 女王の子は、夫がよその国の君主でなければ母の家名を継ぐ
+    const matri = (w.matrilineal && w.spouses.at(-1)?.id === h.id) || (w.rulerOf != null && h.rulerOf == null);
     const dynastyId = matri ? w.dynastyId ?? h.dynastyId : h.dynastyId ?? w.dynastyId;
     const kingdomId = matri ? w.kingdomId : h.kingdomId;
     const k = kingdomId != null ? this.kingdoms[kingdomId] : null;

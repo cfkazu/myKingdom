@@ -40,6 +40,7 @@ export class Pedigree {
     if (r && r.fatherId != null && r.motherId != null) {
       v = 0.5 * (this.kinship(r.fatherId, y) + this.kinship(r.motherId, y));
     }
+    if (this.memo.size > 4000000) this.memo.clear();
     this.memo.set(key, v);
     return v;
   }
