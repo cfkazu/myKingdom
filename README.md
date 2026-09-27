@@ -12,7 +12,7 @@ npm start            # = python3 -m http.server 8000
 # → http://localhost:8000 を開く
 ```
 
-ES モジュールを使っているので、`index.html` を直接開くのではなく、ローカルサーバー経由で開いてください。
+ES モジュールを使っているので、`index.html` を直接開くのではなく、ローカルサーバー経由で開いてください。サーバーなしで開ける 1 ファイル版は `node tools/build.js` で `dist/myKingdom.html` にできます。
 
 - **▶ 再生 / スペースキー**で時間が進みます。「+1年」「+10年」で少しずつ進めることもできます。
 - 地図の地方をクリックすると、その王国の君主・継承順位・歴代の王・戦争が見られます。地図の塗り分けは「王国」「王朝」「かつての国（出自）」「人口」「戦禍」から選べます。
@@ -60,6 +60,8 @@ ES モジュールを使っているので、`index.html` を直接開くので�
 npm test                          # 遺伝エンジンとシミュレーションのテスト（node:test）
 node tools/headless.js 300 demo   # ブラウザなしで 300 年分の年代記を表示（シード demo）
 node tools/headless.js 300 demo -q  # 25 年ごとの概要だけ
+node tools/build.js                 # CSS と JS を埋め込んだ 1 ファイル版を dist/myKingdom.html に出力（サーバーなしで開ける）
+node tools/build.js --fragment      # 外枠（<html><head><body>）なし版。Claude の Artifact として公開するときに使う
 ```
 
 ```

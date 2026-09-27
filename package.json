@@ -7,7 +7,8 @@
   "scripts": {
     "start": "python3 -m http.server 8000",
     "test": "node --test",
-    "sim": "node tools/headless.js"
+    "sim": "node tools/headless.js",
+    "build": "node tools/build.js"
   },
   "license": "MIT"
 }
