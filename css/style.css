@@ -940,3 +940,49 @@ table.list tr.click:hover td {
     transition: none;
   }
 }
+
+/* ───── 地図の階層ボタン ───── */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.seg button {
+  border: none;
+  border-radius: 0;
+  padding: 4px 10px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.seg button + button {
+  border-left: 1px solid var(--border);
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.seg button:focus-visible,
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.opinion {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.opinion.pos {
+  color: var(--good);
+}
+
+.opinion.neg {
+  color: var(--bad);
+}

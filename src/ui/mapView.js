@@ -133,6 +133,20 @@ export class MapView {
     const w = this.world;
     const k = w.kingdoms[pr.ownerId];
     switch (this.mode) {
+      case 'duchy': {
+        // 公爵領ごとの色（本来のまとまり）を、王国の色に少し寄せる
+        const du = w.duchies[pr.duchyId];
+        return lerpRgb(hexToRgb(du.color), hexToRgb(k ? k.color : '#999999'), 0.3);
+      }
+      case 'county': {
+        if (w.isDemesne(pr)) return shade(hexToRgb(k ? k.color : '#999999'), 0.1);
+        return hexToRgb(w.dynasties[pr.holder].color);
+      }
+      case 'loyalty': {
+        if (w.isDemesne(pr)) return hexToRgb('#e3b53a');
+        const o = w.dynasties[pr.holder].opinion ?? 0;
+        return o >= 0 ? lerpRgb(hexToRgb('#e9e1c8'), hexToRgb('#2f9e5b'), Math.min(1, o / 60)) : lerpRgb(hexToRgb('#e9e1c8'), hexToRgb('#c0392b'), Math.min(1, -o / 60));
+      }
       case 'dynasty': {
         const r = w.ruler(k);
         const d = r ? w.dyn(r) : null;
@@ -165,6 +179,9 @@ export class MapView {
         })
         .join('');
     }
+    if (this.mode === 'duchy') return '<span>色と太線＝公爵領（隣り合う伯爵領のまとまり）。伯爵領の過半を持つ家がその公爵になる</span>';
+    if (this.mode === 'county') return '<span>色＝伯爵領の持ち主の家。王国の色（明るめ）は王の直轄地（王領）。細線＝伯爵領、太線＝国境</span>';
+    if (this.mode === 'loyalty') return '<span><span class="sw" style="background:#e3b53a"></span>王領</span><span><span class="sw" style="background:#2f9e5b"></span>忠実な諸侯</span><span><span class="sw" style="background:#e9e1c8"></span>ふつう</span><span><span class="sw" style="background:#c0392b"></span>不満な諸侯（兵を出し渋り、派閥をつくる）</span>';
     if (this.mode === 'pop') return '<span>薄い＝人が少ない　濃い＝人が多い（兵力のもと）</span>';
     return '<span>赤いほど最近の戦で荒れている</span>';
   }
@@ -228,10 +245,15 @@ export class MapView {
       }
       ctx.stroke();
     };
-    for (const pass of ['province', 'coast', 'border']) {
-      ctx.strokeStyle = pass === 'coast' ? 'rgba(30,45,60,.6)' : pass === 'border' ? 'rgba(25,18,12,.9)' : 'rgba(25,18,12,.16)';
-      ctx.lineWidth = pass === 'border' ? 2.6 : pass === 'coast' ? 1.4 : 1;
-      if (pass === 'border') ctx.setLineDash([]);
+    // 階層ごとに、どの境を濃く描くか
+    const style = {
+      duchy: { province: [1, 0.14], duchy: [2.2, 0.75], border: [3.2, 0.95] },
+      county: { province: [1.3, 0.5], duchy: [1.6, 0.6], border: [3.2, 0.95] },
+    }[this.mode] ?? { province: [1, 0.14], duchy: [1, 0.3], border: [2.6, 0.9] };
+    for (const pass of ['province', 'duchy', 'coast', 'border']) {
+      const [lw, alpha] = style[pass] ?? [1.4, 0.6];
+      ctx.strokeStyle = pass === 'coast' ? 'rgba(30,45,60,.6)' : `rgba(25,18,12,${alpha})`;
+      ctx.lineWidth = lw;
       for (let y = 0; y < H; y++) {
         for (let x = 0; x < W; x++) {
           const a = cells[y * W + x];
@@ -242,7 +264,8 @@ export class MapView {
             if (a === b || (a < 0 && b < 0)) continue;
             const coast = a < 0 || b < 0;
             const border = !coast && w.provinces[a].ownerId !== w.provinces[b].ownerId;
-            const kind = coast ? 'coast' : border ? 'border' : 'province';
+            const duchy = !coast && !border && w.provinces[a].duchyId !== w.provinces[b].duchyId;
+            const kind = coast ? 'coast' : border ? 'border' : duchy ? 'duchy' : 'province';
             if (kind === pass) seg(x, y, dx);
           }
         }
@@ -365,23 +388,7 @@ export class MapView {
       }
     }
 
-    // 首都と国名
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (const k of w.aliveKingdoms()) {
-      const c = this._provinceCenter(k.capital);
-      ctx.font = 'bold 17px system-ui, sans-serif';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(0,0,0,.7)';
-      ctx.fillStyle = '#fff5cc';
-      ctx.strokeText('♛', c.x, c.y - 12);
-      ctx.fillText('♛', c.x, c.y - 12);
-      ctx.font = 'bold 13px system-ui, sans-serif';
-      ctx.lineWidth = 3.5;
-      ctx.strokeText(k.name, c.x, c.y + 14);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(k.name, c.x, c.y + 14);
-    }
+    this._labels(ctx);
 
     // 浮かぶアイコン
     this.floaters = this.floaters.filter((f) => now < f.start + f.life);
@@ -402,6 +409,47 @@ export class MapView {
         ctx.fillText(f.label, f.x, f.y - 24 - rise);
       }
       ctx.restore();
+    }
+  }
+
+  _text(ctx, text, x, y, size, color = '#ffffff', weight = 'bold') {
+    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    ctx.lineWidth = Math.max(2.5, size / 4);
+    ctx.strokeStyle = 'rgba(0,0,0,.7)';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  }
+
+  // 階層に合わせた地名：王国名／公爵領名と公爵／伯爵領名と持ち主
+  _labels(ctx) {
+    const w = this.world;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const k of w.aliveKingdoms()) {
+      const c = this._provinceCenter(k.capital);
+      this._text(ctx, '♛', c.x, c.y - 12, 17, '#fff5cc');
+      if (this.mode !== 'duchy' && this.mode !== 'county') this._text(ctx, k.name, c.x, c.y + 14, 13);
+    }
+    if (this.mode === 'duchy') {
+      for (const du of w.duchies) {
+        const x = (du.cx + 0.5) * CELL;
+        const y = (du.cy + 0.5) * CELL;
+        this._text(ctx, `${du.name}公領`, x, y, 12);
+        const dd = w.duchyHolderDyn(du);
+        const sub = dd != null ? `${w.dynasties[dd].name}家` : du.holder ? '王が兼ねる' : '分かれている';
+        this._text(ctx, sub, x, y + 13, 10, dd != null ? '#ffe9a8' : '#e6e0d2', 'normal');
+      }
+    }
+    if (this.mode === 'county' || this.mode === 'loyalty') {
+      for (const pr of w.provinces) {
+        const c = this._provinceCenter(pr.id);
+        this._text(ctx, pr.name, c.x, c.y + (w.kingdoms[pr.ownerId]?.capital === pr.id ? 6 : 0), 10);
+        if (this.mode === 'loyalty' && !w.isDemesne(pr)) {
+          const o = Math.round(w.dynasties[pr.holder].opinion ?? 0);
+          this._text(ctx, `${o > 0 ? '+' : ''}${o}`, c.x, c.y + 12, 10, o < -10 ? '#ffb4a8' : '#d8f5d0', 'normal');
+        }
+      }
     }
   }
 
@@ -483,8 +531,13 @@ export class MapView {
       }
       const k = w.kingdoms[pr.ownerId];
       const origin = w.kingdoms[pr.origin];
-      const houses = w.dynasties.filter((d) => !d.extinct && d.homeProvinceId === pr.id).map((d) => `${d.name}家`);
-      html = `<b>${pr.name}</b>${k && k.capital === pr.id ? '（首都）' : ''}<br>${k ? `${k.name}領` : ''}${origin && origin !== k ? `（もとは${origin.name}）` : ''}<br>人口 ${Math.round(pr.pop)}千人${pr.devastation > 0.1 ? `・戦禍 ${Math.round(pr.devastation * 100)}%` : ''}${houses.length ? `<br>本拠の家：${houses.join('・')}` : ''}`;
+      const du = w.duchies[pr.duchyId];
+      const dd = w.duchyHolderDyn(du);
+      const who = w.holderPerson(pr);
+      const holder = w.isDemesne(pr)
+        ? `王領（${who ? w.displayName(who) : '空位'}）`
+        : `${w.dynasties[pr.holder].name}家${who ? `（当主 ${who.name}）` : ''}・忠誠 ${Math.round(w.dynasties[pr.holder].opinion ?? 0)}`;
+      html = `<b>${pr.name}伯領</b>${k && k.capital === pr.id ? '（首都）' : ''}<br>持ち主：${holder}<br>${du.name}公領：${dd != null ? `${w.dynasties[dd].name}家の公爵` : du.holder ? '王が兼ねる' : '公爵なし'}<br>${k ? `${k.name}王国` : ''}${origin && origin !== k ? `（もとは${origin.name}）` : ''}・人口 ${Math.round(pr.pop)}千人${pr.devastation > 0.1 ? `・戦禍 ${Math.round(pr.devastation * 100)}%` : ''}`;
     }
     this.tip.innerHTML = html;
     this.tip.hidden = false;

@@ -28,7 +28,11 @@ test('300 年動かしても辻褄が合っている', () => {
       assert.equal(r.rulerOf, k.id);
       assert.equal(w.provinces[k.capital].ownerId, k.id, `${k.name} の首都が他国にある`);
     }
-    for (const pr of w.provinces) assert.ok(w.kingdoms[pr.ownerId].alive);
+    for (const pr of w.provinces) {
+      assert.ok(w.kingdoms[pr.ownerId].alive);
+      if (pr.holder != null) assert.ok(!w.dynasties[pr.holder].extinct || w.year === w.dynasties[pr.holder].extinctYear, `${w.year}: ${pr.name} の持ち主の家が絶えている`);
+    }
+    for (const k of w.kingdoms) if (k.alive) assert.ok(w.isDemesne(w.provinces[k.capital]), `${w.year}: ${k.name} の首都が王の土地でない`);
     for (const p of w.living) {
       if (!p.alive) continue;
       if (p.spouseId != null) {
@@ -109,4 +113,23 @@ test('魅力の高い相手ほど縁談の評価が高い', () => {
   const high = w.spouseScore(man, a, 0);
   a.pheno = saved;
   assert.ok(high > low);
+});
+
+test('封建制：伯爵領は王領か諸侯の家のもので、公爵は公爵領の過半を持つ', () => {
+  const w = new World({ seed: 'feudal' });
+  for (let i = 0; i < 80; i++) w.step();
+  const vassalCounties = w.provinces.filter((pr) => !w.isDemesne(pr));
+  assert.ok(vassalCounties.length > w.provinces.length / 3, '諸侯の土地が少なすぎる');
+  for (const du of w.duchies) {
+    const d = w.duchyHolderDyn(du);
+    if (d == null) continue;
+    const n = du.provinces.filter((pid) => w.provinces[pid].holder === d && !w.isDemesne(w.provinces[pid])).length;
+    assert.ok(n >= Math.max(2, Math.ceil(du.provinces.length / 2)), `${du.name}公の持つ伯爵領が過半に足りない`);
+  }
+  // 忠誠は -100〜100 で、兵を出す割合は忠誠が高いほど大きい
+  for (const k of w.aliveKingdoms()) for (const d of w.vassals(k)) assert.ok(d.opinion >= -100 && d.opinion <= 100);
+  assert.ok(w.levyFactor({ opinion: 50 }) > w.levyFactor({ opinion: -50 }));
+  // 人々は首都だけでなく、各地の居城に住んでいる
+  const homes = new Set(w.living.filter((p) => p.alive).map((p) => w.homeProvince(p)));
+  assert.ok(homes.size > w.aliveKingdoms().length * 2, `住んでいる地方が少なすぎる（${homes.size}）`);
 });

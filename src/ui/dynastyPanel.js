@@ -22,7 +22,8 @@ export class DynastyPanel {
       .map((d) => {
         const h = d.extinct ? null : w.head(d);
         const ruling = w.aliveKingdoms().filter((k) => w.ruler(k)?.dynastyId === d.id);
-        return `<tr class="click${d.extinct ? ' dead' : ''}" data-did="${d.id}"><td><span class="kdot" style="background:${d.color}"></span>${esc(d.name)}家${ruling.length ? ` 👑${ruling.map((k) => esc(k.name)).join('・')}` : ''}</td>
+        const title = !d.extinct && !ruling.length ? w.houseTitle(d) : null;
+        return `<tr class="click${d.extinct ? ' dead' : ''}" data-did="${d.id}"><td><span class="kdot" style="background:${d.color}"></span>${esc(d.name)}家${ruling.length ? ` 👑${ruling.map((k) => esc(k.name)).join('・')}` : ''}${title ? `<div class="small muted">${esc(title)}</div>` : ''}</td>
         <td class="num">${Math.round(d.prestige)}</td><td class="num">${living.get(d.id) ?? 0}</td><td class="num">${reigns.get(d.id) ?? 0}</td>
         <td class="small">${d.foundedYear}〜${d.extinct ? d.extinctYear : ''}${h ? `<br>当主 ${esc(h.name)}` : ''}</td></tr>`;
       })
@@ -48,6 +49,8 @@ export class DynastyPanel {
         <dt>本拠</dt><dd>${home ? esc(home.name) : '—'}${home && home.ownerId >= 0 ? `（${kingdomLink(w.kingdoms[home.ownerId])}）` : ''}</dd>
         ${parent ? `<dt>本家</dt><dd>${esc(parent.name)}家</dd>` : ''}
         <dt>家格</dt><dd>${Math.round(d.prestige)}</dd>
+        <dt>爵位</dt><dd>${esc(w.houseTitle(d) ?? (d.extinct ? '—' : '無領'))}</dd>
+        ${w.countiesOf(d.id).length ? `<dt>所領</dt><dd>${w.countiesOf(d.id).map((pr) => `${esc(pr.name)}伯領`).join('・')}</dd>` : ''}
         <dt>存命</dt><dd>${members.length} 人・平均の近交係数 ${meanF.toFixed(3)}</dd>
         ${members.length ? `<dt>遺伝の傾向</dt><dd class="small">血友病の保因者・患者 ${count((p) => p.genome && (isCarrier(p.genome, 'HEM') || p.pheno.hemophilia))} 人・受け口 ${count((p) => p.pheno.jaw)} 人・狂気の素質 ${count((p) => p.pheno.madness)} 人・虚弱 ${count((p) => p.pheno.load > 0)} 人</dd>` : ''}
       </dl>

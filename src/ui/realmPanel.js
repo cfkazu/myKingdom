@@ -2,6 +2,7 @@
 
 import { LAWS, CUSTOMS } from '../world.js';
 import { esc, personLink, kingdomLink } from './util.js';
+import { FACTION_LABEL } from '../feudal.js';
 
 const HOW = { inherit: '世襲', elected: '選挙', conquest: '征服', usurp: '簒奪', independence: '独立', init: '世襲' };
 const KIND = { conquest: '征服戦争', claim: '継承戦争', civil: '内乱', independence: '独立戦争' };
@@ -53,6 +54,7 @@ export class RealmPanel {
           .join('') || '<tr><td class="muted">継承者がいない（王家断絶の危機）</td></tr>'}</tbody></table>`
           : ''
       }
+      ${k.alive ? this._feudal(w, k) : ''}
       <h3>歴代の君主（${k.rulers.length}）</h3>
       <table class="list"><thead><tr><th>君主</th><th>王朝</th><th>治世</th><th>即位</th></tr></thead><tbody>
       ${rulers
@@ -76,6 +78,44 @@ export class RealmPanel {
               .join('')}</tbody></table>`
           : '<p class="small muted">戦争の記録はない。</p>'
       }
+    `;
+  }
+
+  _feudal(w, k) {
+    const demesne = w.demesneOf(k);
+    const vassals = w.vassals(k).sort((a, b) => w.countiesOf(b.id, k.id).length - w.countiesOf(a.id, k.id).length || (a.opinion ?? 0) - (b.opinion ?? 0));
+    const inFaction = new Map();
+    for (const f of k.factions ?? []) for (const id of f.members) inFaction.set(id, f.kind);
+    const rank = { duke: '公爵', count: '伯爵', landless: '無領' };
+    const rows = vassals
+      .map((d) => {
+        const h = w.head(d);
+        const o = Math.round(d.opinion ?? 0);
+        const why = w
+          .opinionOf(d, k)
+          .parts.map(([v, t]) => `${v > 0 ? '+' : ''}${v} ${t}`)
+          .join('\n');
+        const f = inFaction.get(d.id);
+        return `<tr><td><span class="kdot" style="background:${d.color}"></span>${esc(d.name)}家<div class="small">${h ? personLink(w, h, { short: true }) : ''}</div></td>
+          <td>${esc(w.houseTitle(d) ?? rank[w.houseRank(d)])}</td>
+          <td class="num">${w.countiesOf(d.id, k.id).length}</td>
+          <td class="num"><span class="opinion ${o >= 10 ? 'pos' : o <= -10 ? 'neg' : ''}" title="${esc(why)}">${o > 0 ? '+' : ''}${o}</span></td>
+          <td>${f ? `<span class="badge bad">${FACTION_LABEL[f]}</span>` : ''}</td></tr>`;
+      })
+      .join('');
+    const factions = (k.factions ?? [])
+      .map((f) => {
+        const leader = w.get(f.leaderId);
+        const goal = f.kind === 'claimant' ? `${personLink(w, leader)} を王に` : f.kind === 'usurp' ? `盟主 ${personLink(w, leader)} を王に` : `盟主 ${personLink(w, leader)} のもとで独立`;
+        return `<li><b>${FACTION_LABEL[f.kind]}</b>：${f.members.map((id) => esc(w.dynasties[id].name)).join('・')}家 — ${goal}。兵力は王の <b>${Math.round(f.ratio * 100)}%</b></li>`;
+      })
+      .join('');
+    return `
+      <h3>王領（${demesne.length} / 直轄できる上限 ${w.demesneLimit(k)}）</h3>
+      <p class="small">${demesne.map((pr) => `${esc(pr.name)}${pr.id === k.capital ? '（首都）' : ''}`).join('・')}。上限を超えた土地は恩賞として諸侯に与えられる。</p>
+      <h3>諸侯（${vassals.length} 家）</h3>
+      ${vassals.length ? `<table class="list"><thead><tr><th>家</th><th>爵位</th><th class="num">伯爵領</th><th class="num">忠誠</th><th>派閥</th></tr></thead><tbody>${rows}</tbody></table><p class="small muted">忠誠の数字にマウスを乗せると内訳が出ます。忠誠が低い家は兵を出し渋り、不満な家どうしで派閥をつくります。</p>` : '<p class="small muted">諸侯はいない。</p>'}
+      ${factions ? `<h3>不満な諸侯の派閥</h3><ul class="small">${factions}</ul><p class="small muted">派閥の兵力が王の兵力に迫ると反乱が起きる。王が弱い（幼い・狂気・敗戦続き）ほど早く立ち上がる。</p>` : ''}
     `;
   }
 

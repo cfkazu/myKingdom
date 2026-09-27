@@ -9,7 +9,8 @@ import { createRng } from './rng.js';
 import { makeGamete, fertilize, express, randomGenome, randomEnv, regionalFreqs, allelesAt, INDEX } from './genes.js';
 import { Pedigree } from './pedigree.js';
 import { CULTURES, givenName, dynastyName, kingdomName, regnalSuffix } from './names.js';
-import { generateMap, partition } from './map.js';
+import { generateMap, partition, generateDuchies } from './map.js';
+import { FeudalMixin, setupFeudal } from './feudal.js';
 
 export const ADULT = 16;
 
@@ -71,8 +72,10 @@ export class World {
     this.headCache = new Map();
     this.map = generateMap(this.rng, { provinces: this.o.provinces });
     this.provinces = this.map.provinces;
+    this.duchies = generateDuchies(this.rng, this.provinces);
     this._setup();
     this._refreshCaches();
+    this._feudal();
     this._record();
   }
 
@@ -207,7 +210,7 @@ export class World {
       return `${rk.name}の王族`;
     }
     const d = this.dyn(p);
-    if (d && this.head(d) === p) return `${d.name}家の当主`;
+    if (d && this.head(d) === p) return this.houseTitle(d) ?? `${d.name}家の当主`;
     if (p.lowborn) return '平民の出';
     return '';
   }
@@ -228,14 +231,15 @@ export class World {
     return `{k:${k.id}}`;
   }
 
-  // その人が暮らしている地方：王族は首都、諸侯の家は本拠、それ以外は首都
-  homeProvince(p) {
+  // その人が暮らしている地方：君主は首都、配偶者の家に入った人は配偶者のところ、ほかは家の居城
+  homeProvince(p, depth = 0) {
     const k = this.kingdomOf(p);
-    if (!k) return null;
     if (p.rulerOf != null) return this.kingdoms[p.rulerOf].capital;
+    const sp = p.spouseId != null ? this.get(p.spouseId) : null;
+    if (sp && sp.alive && depth === 0 && (p.sex === 'F' ? !p.matrilineal : p.matrilineal)) return this.homeProvince(sp, 1);
     const d = this.dyn(p);
-    if (d && this.provinces[d.homeProvinceId]?.ownerId === p.kingdomId && !(k.alive && this.ruler(k)?.dynastyId === d.id)) return d.homeProvinceId;
-    return k.capital;
+    if (d && this.provinces[d.homeProvinceId]?.ownerId === p.kingdomId) return d.homeProvinceId;
+    return k && k.alive ? k.capital : null;
   }
 
   _fx(kind, provinceId, personId = null, important = false) {
@@ -326,6 +330,8 @@ export class World {
       extinctYear: null,
       everRuled: false,
       parentId,
+      memory: [],
+      opinion: 0,
     };
     this.dynasties.push(d);
     return d;
@@ -414,21 +420,14 @@ export class World {
     });
     for (const k of this.kingdoms) {
       const culture = k.culture;
-      const provs = this.provincesOf(k);
       // 王家
       const rd = this._newDynasty(culture, k.id, k.capital, this.year - 60 - this.rng.int(120));
       rd.prestige = 60;
       const ruler = this._family(rd, k, k.capital, 28 + this.rng.int(20), { withParents: true, siblings: this.rng.int(3), culture });
       this._crown(k, ruler, 'init');
-      // 諸侯の家
-      const nHouses = 2 + Math.floor(provs.length / 4);
-      for (let h = 0; h < nHouses; h++) {
-        const home = this.rng.pick(provs).id;
-        const d = this._newDynasty(culture, k.id, home, this.year - this.rng.int(150));
-        d.prestige = 15 + this.rng.int(25);
-        this._family(d, k, home, 22 + this.rng.int(30), { withParents: this.rng.chance(0.5), siblings: this.rng.int(2), culture });
-      }
     }
+    // 諸侯の家と所領
+    setupFeudal(this);
     this.addLog('event', `${this.year}年、${this.aliveKingdoms().length} つの王国が大陸を分け合っている。`);
   }
 
@@ -473,9 +472,10 @@ export class World {
     this._births();
     this._refreshCaches();
     this._updateAlliances();
+    this._feudal();
     this._warsStep();
     this._declareWars();
-    this._revolts();
+    this._factions();
     this._housekeeping();
     this._record();
   }
@@ -820,6 +820,17 @@ export class World {
     p.rulerOf = k.id;
     p.rulerOfEver = k.id;
     k.rulerId = p.id;
+    // 首都は王の土地でなければならない。新しい王家の土地があればそこへ移し、なければ首都を王領に戻す
+    const capPr = this.provinces[k.capital];
+    if (capPr && capPr.holder != null && capPr.holder !== p.dynastyId && this.duchies) {
+      const own = this.provinces.filter((pr) => pr.ownerId === k.id && pr.holder === p.dynastyId);
+      if (own.length) k.capital = own.sort((a, b) => b.pop - a.pop)[0].id;
+      else {
+        const lost = this.dynasties[capPr.holder];
+        if (lost && !lost.extinct) this._remember(lost, -30, '居城を王に奪われた', k);
+        capPr.holder = null;
+      }
+    }
     p.claims = p.claims.filter((c) => c !== k.id);
     const n = (k.nameCounts[p.name] ?? 0) + 1;
     k.nameCounts[p.name] = n;
@@ -1030,7 +1041,7 @@ export class World {
   // ───────── 出生 ─────────
 
   _nobleCap(k) {
-    return 14 + this.provincesOf(k).length * 5;
+    return 16 + this.provincesOf(k).length * 6;
   }
 
   _births() {
@@ -1044,7 +1055,7 @@ export class World {
       if (!h || !h.alive) continue;
       const af = a < 18 ? 0.6 : a < 30 ? 1 : a < 35 ? 0.8 : a < 40 ? 0.55 : 0.2;
       const k = this.kingdomOf(w);
-      const cap = k && k.alive ? clamp((this._nobleCap(k) / Math.max(1, counts.get(k.id) ?? 1)) ** 2, 0.03, 1.3) : 0.3;
+      const cap = k && k.alive ? clamp((this._nobleCap(k) / Math.max(1, counts.get(k.id) ?? 1)) ** 3, 0.02, 1.3) : 0.3;
       // 君主と継承者の家は子づくりに熱心
       const dynastic = w.rulerOf != null || h.rulerOf != null ? 1.3 : 1;
       const p = 0.42 * w.pheno.fertility * h.pheno.fertility * af * Math.min(1, cap * dynastic) * (w.mad ? 0.7 : 1);
@@ -1174,15 +1185,6 @@ export class World {
     return [...out].map((id) => this.kingdoms[id]).filter((x) => x.alive);
   }
 
-  // 兵力（千人）
-  power(k) {
-    let s = 0;
-    for (const pr of this.provinces) if (pr.ownerId === k.id) s += pr.pop * 0.025 * (1 - pr.devastation * 0.5);
-    const r = this.ruler(k);
-    const comp = r ? 0.8 + this.stewardship(r) / 250 : 0.8;
-    return s * comp * (k.regentId != null ? 0.85 : 1) * (1 - Math.min(0.5, k.exhaustion));
-  }
-
   commander(k, excludeDynastyId = null) {
     const r = this.ruler(k);
     if (r && this.age(r) >= 18 && this.age(r) <= 65 && !r.pheno.hemophilia && this.martial(r) >= 50) return r;
@@ -1190,7 +1192,7 @@ export class World {
     let bestM = -1;
     for (const p of this.living) {
       if (!p.alive || p.kingdomId !== k.id || p.pheno.hemophilia) continue;
-      if (excludeDynastyId != null && p.dynastyId === excludeDynastyId) continue;
+      if (excludeDynastyId && excludeDynastyId.has(p.dynastyId)) continue;
       const a = this.age(p);
       if (a < 18 || a > 60) continue;
       const m = this.martial(p) - (p.sex === 'F' ? 15 : 0);
@@ -1220,7 +1222,7 @@ export class World {
       result: null,
       claimantId: null,
       leaderId: null,
-      rebelShare: 0,
+      members: [],
       provinces: [],
       attackerAllies: [],
       defenderAllies: [],
@@ -1239,6 +1241,7 @@ export class World {
     const a = this.kingdoms[w.attackerId];
     const d = this.kingdoms[w.defenderId];
     if (w.kind === 'claim') return `${d.name}継承戦争`;
+    if (w.kind === 'civil' && w.claimantId != null) return `${d.name}の内乱（${this.get(w.claimantId).name}擁立）`;
     if (w.kind === 'civil') return `${d.name}の内乱（${this.dyn(this.get(w.leaderId))?.name ?? ''}家の反乱）`;
     if (w.kind === 'independence') return `${this.provinces[w.provinces[0]].name}独立戦争`;
     return `${a.name}・${d.name}戦争`;
@@ -1302,9 +1305,14 @@ export class World {
   _sidePower(w, side) {
     const main = this.kingdoms[side === 'A' ? w.attackerId : w.defenderId];
     if (w.kind === 'civil' || w.kind === 'independence') {
-      const kp = this.power(this.kingdoms[w.defenderId]);
-      if (side === 'A') return kp * w.rebelShare;
-      return kp * (1 - w.rebelShare) + w.defenderAllies.reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
+      // 反乱軍は加わった家の所領の兵を全部出す。王は残りで戦う
+      const ex = new Set(w.members ?? []);
+      if (side === 'A') {
+        let s = 0;
+        for (const pr of this.provinces) if (pr.ownerId === main.id && ex.has(pr.holder)) s += this.countyLevy(pr);
+        return s * 1.4 + 2;
+      }
+      return this.power(main, ex) + w.defenderAllies.reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
     }
     const allies = side === 'A' ? w.attackerAllies : w.defenderAllies;
     return this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.5, 0);
@@ -1324,7 +1332,19 @@ export class World {
         continue;
       }
       if ((w.kind === 'civil' || w.kind === 'independence') && !this.get(w.leaderId).alive) {
-        this._endWar(w, 'defender', '反乱の指導者の死');
+        // 盟主が死んだら、同じ家の新しい当主か、ほかの家の当主が引き継ぐ
+        const next = [this.get(w.leaderId).dynastyId, ...(w.members ?? [])]
+          .map((id) => (id != null ? this.dynasties[id] : null))
+          .map((d) => (d && !d.extinct ? this.head(d) : null))
+          .find((h) => h && h.alive && this.age(h) >= 16 && h.rulerOf == null);
+        if (!next || (w.kind === 'civil' && w.claimantId != null && !this.get(w.claimantId).alive)) {
+          this._endWar(w, 'defender', '反乱の指導者の死');
+          continue;
+        }
+        w.leaderId = next.id;
+      }
+      if (w.kind === 'civil' && w.claimantId != null && !this.get(w.claimantId).alive) {
+        this._endWar(w, 'defender', '擁立された請求者の死');
         continue;
       }
       this._battle(w);
@@ -1342,7 +1362,7 @@ export class World {
     const D = this.kingdoms[w.defenderId];
     const civil = w.kind === 'civil' || w.kind === 'independence';
     const cA = civil ? this.get(w.leaderId) : this.commander(A);
-    const cD = this.commander(D, civil ? cA?.dynastyId : null);
+    const cD = this.commander(D, civil ? new Set(w.members ?? []) : null);
     const pA = this._sidePower(w, 'A');
     const pD = this._sidePower(w, 'D');
     const mA = cA ? this.martial(cA) : 30;
@@ -1379,7 +1399,7 @@ export class World {
       if (!p.alive || p.sex !== 'M' || p.rulerOf != null || p === cA || p === cD) continue;
       const a = this.age(p);
       if (a < 18 || a > 50) continue;
-      const onA = civil ? p.dynastyId === this.get(w.leaderId).dynastyId : p.kingdomId === A.id;
+      const onA = civil ? (w.members ?? []).includes(p.dynastyId) : p.kingdomId === A.id;
       const onD = !onA && p.kingdomId === D.id;
       if (!onA && !onD) continue;
       const lost = (onA && !aWins) || (onD && aWins);
@@ -1399,7 +1419,7 @@ export class World {
 
   _frontProvince(w) {
     const D = this.kingdoms[w.defenderId];
-    if (w.kind === 'independence') return this.provinces[this.rng.pick(w.provinces)];
+    if ((w.kind === 'independence' || w.kind === 'civil') && w.provinces.length) return this.provinces[this.rng.pick(w.provinces)];
     const cands = [];
     for (const pr of this.provinces) {
       if (pr.ownerId !== D.id) continue;
@@ -1441,6 +1461,12 @@ export class World {
         const n = 1 + Math.floor(Math.max(0, w.score) / 70);
         const taken = this._cede(D, A, n);
         this.addLog('war', `${w.name}は ${this.kn(A)} の勝利に終わり、${taken.map((p) => p.name).join('・')} を得た。${why}`, [A.id, D.id]);
+        // 手柄を立てた指揮官の家に、奪った土地を恩賞として与える
+        const hero = this.get(w.battles.filter((b) => b.attackerWon).at(-1)?.cA);
+        const hd = hero && hero.alive && hero.rulerOf == null ? this.dyn(hero) : null;
+        if (hd && hd.id !== this.ruler(A)?.dynastyId && taken.length) this._grant(A, taken[0], hd, '戦功の恩賞');
+        for (const d of this.vassals(A)) this._remember(d, 6, '勝ち戦', A);
+        for (const d of this.vassals(D)) this._remember(d, -6, '負け戦', D);
         if (!this.provincesOf(D).length) this._fall(D, A);
       } else if (result === 'defender') {
         const taken = this.rng.chance(0.4) ? this._cede(A, D, 1) : [];
@@ -1462,57 +1488,104 @@ export class World {
         } else this._crown(D, c, 'conquest');
       } else this.addLog('war', `${w.name}は ${result === 'defender' ? `${this.kn(D)} の勝利` : '痛み分け'}に終わり、${this.pn(c)} の請求はかなわなかった。${why}`, [A.id, D.id]);
     } else if (w.kind === 'civil') {
-      const leader = this.get(w.leaderId);
-      const old = this.ruler(D);
-      if (result === 'attacker') {
-        if (old) {
-          this._endReign(D, old);
-          if (this.rng.chance(0.5)) {
-            this.addLog('war', `反乱軍が勝ち、${this.pn(old)} は処刑された。`, [D.id]);
-            this._kill(old, '処刑');
-          } else {
-            if (!old.claims.includes(D.id)) old.claims.push(D.id);
-            this.addLog('war', `反乱軍が勝ち、${this.pn(old)} は幽閉された。`, [D.id]);
-          }
-        }
-        if (leader.alive) this._crown(D, leader, 'usurp');
-        else if (!this.ruler(D)) this._succeed(D, old ?? leader);
-      } else {
-        if (leader.alive) {
-          this.addLog('war', `${w.name}は鎮圧され、${this.pn(leader)} は処刑された。${why}`, [D.id]);
-          this._kill(leader, '処刑');
-        } else this.addLog('war', `${w.name}は鎮圧された。${why}`, [D.id]);
-        const d = this.dyn(leader);
-        if (d) d.prestige *= 0.5;
-      }
+      this._endCivil(w, result, why);
     } else if (w.kind === 'independence') {
-      const leader = this.get(w.leaderId);
-      const provs = w.provinces.filter((id) => this.provinces[id].ownerId === D.id);
-      if (result === 'attacker' && provs.length && leader.alive) {
-        const origin = this.provinces[provs[0]].origin;
-        const old = this.kingdoms[origin];
-        const revive = old && !old.alive;
-        const nk = this._newKingdom({
-          culture: this.provinces[provs[0]].culture,
-          capital: provs[0],
-          law: revive ? old.law : D.law,
-          custom: revive ? old.custom : D.custom,
-          name: revive ? old.name : null,
-          origin,
-        });
-        for (const id of provs) this.provinces[id].ownerId = nk.id;
-        for (const p of this.living) if (p.alive && p.dynastyId === leader.dynastyId && p.rulerOf == null) p.kingdomId = nk.id;
-        const dd = this.dyn(leader);
-        if (dd) dd.homeProvinceId = provs[0];
-        this._crown(nk, leader, 'independence');
-        this.addLog('war', `${w.name}は反乱軍の勝利に終わり、${this.kn(nk)} が${revive ? '再興' : '建国'}された。`, [D.id, nk.id]);
+      this._endIndependence(w, result, why);
+    }
+  }
+
+  // 反乱に加わった家への処分：盟主の家は所領を没収され、盟主は処刑か幽閉。ほかの家は罰金（家格）
+  _punishRebels(w, k, why) {
+    const leader = this.get(w.leaderId);
+    const ld = this.dyn(leader);
+    if (ld) for (const pr of this.countiesOf(ld.id, k.id)) pr.holder = null;
+    for (const id of w.members ?? []) {
+      const d = this.dynasties[id];
+      d.prestige *= 0.6;
+      d.rebelYear = this.year;
+      if (d !== ld) this._remember(d, -15, '反乱の敗北', k);
+    }
+    if (leader.alive) {
+      if (this.rng.chance(0.6)) {
+        this.addLog('war', `${w.name}は鎮圧された。${this.pn(leader)} は処刑され、${ld ? `${ld.name}家` : ''}の所領は王に没収された。${why}`, [k.id]);
+        this._kill(leader, '処刑');
+        for (const id of w.members ?? []) if (id !== ld?.id) this._remember(this.dynasties[id], -20, '同志の処刑', k);
+      } else this.addLog('war', `${w.name}は鎮圧された。${this.pn(leader)} は幽閉され、${ld ? `${ld.name}家` : ''}の所領は王に没収された。${why}`, [k.id]);
+    } else this.addLog('war', `${w.name}は鎮圧され、${ld ? `${ld.name}家` : '反乱した家'}の所領は王に没収された。${why}`, [k.id]);
+  }
+
+  _endCivil(w, result, why) {
+    const D = this.kingdoms[w.defenderId];
+    const leader = this.get(w.leaderId);
+    const claimant = w.claimantId != null ? this.get(w.claimantId) : null;
+    const newKing = claimant && claimant.alive ? claimant : leader.alive ? leader : null;
+    if (result !== 'attacker' || !newKing) {
+      this._punishRebels(w, D, why);
+      return;
+    }
+    const old = this.ruler(D);
+    if (old) {
+      this._endReign(D, old);
+      if (this.rng.chance(0.5)) {
+        this.addLog('war', `反乱軍が勝ち、${this.pn(old)} は処刑された。`, [D.id]);
+        this._kill(old, '処刑');
       } else {
-        if (leader.alive) {
-          this.addLog('war', `${w.name}は鎮圧され、${this.pn(leader)} は処刑された。${why}`, [D.id]);
-          this._kill(leader, '処刑');
-        } else this.addLog('war', `${w.name}は鎮圧された。${why}`, [D.id]);
+        if (!old.claims.includes(D.id)) old.claims.push(D.id);
+        this.addLog('war', `反乱軍が勝ち、${this.pn(old)} は幽閉された。`, [D.id]);
       }
     }
+    if (newKing.rulerOf != null && newKing.rulerOf !== D.id) {
+      this.addLog('succession', `${this.pn(newKing)} が ${this.kn(D)} の王位も手にし、${this.kn(D)} は ${this.kn(this.kingdoms[newKing.rulerOf])} に統合された。`, [D.id]);
+      this._absorb(D, this.kingdoms[newKing.rulerOf]);
+      return;
+    }
+    this._crown(D, newKing, 'usurp');
+    for (const id of w.members ?? []) this._remember(this.dynasties[id], 25, '勝利の同志', D);
+  }
+
+  _endIndependence(w, result, why) {
+    const D = this.kingdoms[w.defenderId];
+    const leader = this.get(w.leaderId);
+    const members = new Set(w.members ?? []);
+    const provs = this.provinces.filter((pr) => pr.ownerId === D.id && (members.has(pr.holder) || w.provinces.includes(pr.id)) && pr.id !== D.capital).map((pr) => pr.id);
+    if (result !== 'attacker' || !provs.length || !leader.alive) {
+      this._punishRebels(w, D, why);
+      return;
+    }
+    // 戦のあいだに盟主がよその国の君主になっていたら、独立した地方はその国に加わる
+    if (leader.rulerOf != null) {
+      const into = this.kingdoms[leader.rulerOf];
+      for (const id of provs) this.provinces[id].ownerId = into.id;
+      for (const id of members) this.dynasties[id].kingdomId = into.id;
+      this.addLog('war', `${w.name}は反乱軍の勝利に終わり、${provs.map((id) => this.provinces[id].name).join('・')} は ${this.pn(leader)} の治める ${this.kn(into)} に加わった。`, [D.id, into.id]);
+      return;
+    }
+    // 滅んだ国の地方が多ければ、その国を再興する
+    const originCount = new Map();
+    for (const id of provs) originCount.set(this.provinces[id].origin, (originCount.get(this.provinces[id].origin) ?? 0) + 1);
+    const [origin] = [...originCount].sort((a, b) => b[1] - a[1])[0];
+    const old = this.kingdoms[origin];
+    const revive = old && !old.alive && originCount.get(origin) * 2 >= provs.length;
+    const ld = this.dyn(leader);
+    const seat = ld && provs.includes(ld.homeProvinceId) ? ld.homeProvinceId : provs[0];
+    const nk = this._newKingdom({
+      culture: this.provinces[seat].culture,
+      capital: seat,
+      law: revive ? old.law : D.law,
+      custom: revive ? old.custom : D.custom,
+      name: revive ? old.name : null,
+      origin: revive ? origin : null,
+    });
+    for (const id of provs) this.provinces[id].ownerId = nk.id;
+    if (ld) {
+      ld.kingdomId = nk.id;
+      ld.homeProvinceId = seat;
+    }
+    for (const id of members) this.dynasties[id].kingdomId = nk.id;
+    for (const p of this.living) if (p.alive && members.has(p.dynastyId) && p.rulerOf == null) p.kingdomId = nk.id;
+    this._crown(nk, leader, 'independence');
+    for (const id of members) if (id !== ld?.id) this._remember(this.dynasties[id], 25, '独立の同志', nk);
+    this.addLog('war', `${w.name}は反乱軍の勝利に終わり、${provs.map((id) => this.provinces[id].name).join('・')} から ${this.kn(nk)} が${revive ? '再興' : '建国'}された。`, [D.id, nk.id]);
   }
 
   // loser の地方を n 個、winner に割譲する（winner に接する地方から）
@@ -1531,17 +1604,11 @@ export class World {
 
   _transfer(pr, to) {
     const from = this.kingdoms[pr.ownerId];
+    // 割譲された伯爵領は新しい王の王領になる。持っていた家は土地を失う
+    if (pr.holder != null && from && !this.isDemesne(pr)) this._remember(this.dynasties[pr.holder], -20, '領地を守れなかった', from);
+    pr.holder = null;
     pr.ownerId = to.id;
-    // その地方を本拠とする諸侯の家は、新しい王に仕える
-    for (const d of this.dynasties) {
-      if (d.extinct || d.homeProvinceId !== pr.id) continue;
-      if (from && this.ruler(from)?.dynastyId === d.id) continue;
-      for (const p of this.living) if (p.alive && p.dynastyId === d.id && p.rulerOf == null && p.kingdomId === from?.id) p.kingdomId = to.id;
-    }
-    if (from && from.capital === pr.id) {
-      const rest = this.provincesOf(from);
-      if (rest.length) from.capital = rest.sort((a, b) => b.pop - a.pop)[0].id;
-    }
+    if (from && from.capital === pr.id) this._ensureCapital(from);
   }
 
   _fall(k, by) {
@@ -1570,83 +1637,6 @@ export class World {
     // 広すぎる国はまとまりにくい
     w += Math.max(0, (this.provincesOf(k).length - 10) / 6);
     return w;
-  }
-
-  _revolts() {
-    for (const k of this.kingdoms) {
-      if (!k.alive) continue;
-      if (this.activeWars(k.id).some((w) => w.kind === 'civil' || w.kind === 'independence')) continue;
-      const r = this.ruler(k);
-      if (!r) continue;
-      const weak = this.weakness(k);
-      const rulingPrestige = this.dyn(r)?.prestige ?? 10;
-      // 簒奪：野心的な諸侯、または請求権を持つ者
-      let started = false;
-      for (const p of this.living) {
-        if (!p.alive || p.kingdomId !== k.id || p.rulerOf != null || this.age(p) < 20) continue;
-        const d = this.dyn(p);
-        const isHead = d && this.head(d) === p && d.id !== r.dynastyId;
-        const hasClaim = p.claims.includes(k.id);
-        if (!isHead && !hasClaim) continue;
-        const amb = p.pheno.ambition;
-        if (amb < 55) continue;
-        const dp = d ? d.prestige : 5;
-        const prob = 0.0012 * weak * ((amb / 60) ** 2) * (1 + dp / (rulingPrestige + 1)) * (hasClaim ? 3 : 1);
-        if (!this.rng.chance(prob)) continue;
-        const share = clamp(0.28 + 0.35 * (dp / (dp + rulingPrestige)) + 0.03 * weak + (hasClaim ? 0.1 : 0), 0.2, 0.65);
-        const w = this._startWar('civil', k, k, { leaderId: p.id, rebelShare: share });
-        this.addLog('war', `${this.pn(p)} が ${this.pn(r)} に反旗をひるがえした${hasClaim ? '（王位への請求権を掲げて）' : ''}（${w.name}）。`, [k.id]);
-        started = true;
-        break;
-      }
-      if (started) continue;
-      // 独立：ほかの国に由来する地方がまとまっていれば、独立をめざす
-      const groups = new Map();
-      for (const pr of this.provinces) {
-        if (pr.ownerId !== k.id || pr.origin === k.origin) continue;
-        const o = this.kingdoms[pr.origin];
-        if (o && o.alive) continue;
-        if (!groups.has(pr.origin)) groups.set(pr.origin, []);
-        groups.get(pr.origin).push(pr.id);
-      }
-      // 首都から遠い有力な諸侯は、自分の地方ごと独立をめざす
-      const provs = this.provincesOf(k);
-      if (provs.length >= 8) {
-        const cap = this.provinces[k.capital];
-        for (const d of this.dynasties) {
-          if (d.extinct || d.id === r.dynastyId) continue;
-          const home = this.provinces[d.homeProvinceId];
-          if (!home || home.ownerId !== k.id || home.id === k.capital) continue;
-          const dist = Math.hypot(home.cx - cap.cx, home.cy - cap.cy);
-          if (dist < 18) continue;
-          const h = this.head(d);
-          if (!h || !h.alive || h.kingdomId !== k.id || this.age(h) < 20 || h.pheno.ambition < 50) continue;
-          if (!this.rng.chance(0.0008 * weak * (provs.length / 8) * (dist / 18))) continue;
-          const ids = [home.id, ...[...home.neighbors].filter((q) => this.provinces[q].ownerId === k.id && q !== k.capital)];
-          if (!groups.has(-1 - d.id)) groups.set(-1 - d.id, ids);
-          groups.get(-1 - d.id).forced = h;
-          break;
-        }
-      }
-      for (const [, ids] of groups) {
-        if (ids.length < 2 && !ids.forced) continue;
-        const prob = ids.forced ? 1 : 0.005 * weak * (ids.length / 3);
-        if (!this.rng.chance(prob)) continue;
-        const kPow = this.provincesOf(k).reduce((s, p) => s + p.pop, 0);
-        const gPow = ids.reduce((s, id) => s + this.provinces[id].pop, 0);
-        let leader = ids.forced ?? null;
-        if (!leader) for (const d of this.dynasties) {
-          if (d.extinct || !ids.includes(d.homeProvinceId) || d.id === r.dynastyId) continue;
-          const h = this.head(d);
-          if (h && h.alive && this.age(h) >= 20 && h.rulerOf == null) leader = h;
-        }
-        if (!leader) leader = this._raiseHouse(k, ids[0], false);
-        if (!leader) continue;
-        const w = this._startWar('independence', k, k, { leaderId: leader.id, provinces: ids, rebelShare: clamp(0.25 + 0.9 * (gPow / kPow) + 0.03 * weak, 0.2, 0.7) });
-        this.addLog('war', `${ids.map((id) => this.provinces[id].name).join('・')} の人々が ${this.pn(leader)} を担いで独立を求め、蜂起した（${w.name}）。`, [k.id]);
-        break;
-      }
-    }
   }
 
   // 新しい貴族の家を興す（地方の騎士の家）
@@ -1680,8 +1670,8 @@ export class World {
     for (const k of this.kingdoms) {
       if (!k.alive) continue;
       const provs = this.provincesOf(k);
-      const houses = this.dynasties.filter((d) => !d.extinct && this.head(d)?.kingdomId === k.id).length;
-      if (houses < 2 + provs.length / 4 && this.rng.chance(0.12)) this._raiseHouse(k, this.rng.pick(provs).id, false);
+      const houses = this.dynasties.filter((d) => !d.extinct && d.kingdomId === k.id).length;
+      if (houses < 2 + provs.length / 3 && this.rng.chance(0.12)) this._raiseHouse(k, this.rng.pick(provs).id, false);
     }
     this.ped.prune(this.year - 160);
   }
@@ -1729,3 +1719,5 @@ export class World {
     if (this.history.length > 2000) this.history.shift();
   }
 }
+
+Object.assign(World.prototype, FeudalMixin);

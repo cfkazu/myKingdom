@@ -60,10 +60,14 @@ class App {
     $('#btn-step').addEventListener('click', () => this.advance(1));
     $('#btn-step10').addEventListener('click', () => this.advance(10));
     $('#speed').addEventListener('change', (e) => (this.speed = Number(e.target.value)));
-    $('#map-mode').addEventListener('change', (e) => {
-      this.map.mode = e.target.value;
+    const setMode = (mode) => {
+      this.map.mode = mode;
+      document.querySelectorAll('#map-levels button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+      if (['kingdom', 'duchy', 'county'].includes(mode)) $('#map-mode').value = '';
       this.renderMap();
-    });
+    };
+    document.querySelectorAll('#map-levels button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    $('#map-mode').addEventListener('change', (e) => setMode(e.target.value || 'kingdom'));
     $('#log-filter').addEventListener('change', (e) => {
       this.logFilter = e.target.value;
       this.renderLog(true);

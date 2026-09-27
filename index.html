@@ -35,16 +35,19 @@
     <main class="layout">
       <section class="map-col">
         <div class="map-toolbar">
-          <label>
-            地図
-            <select id="map-mode">
-              <option value="kingdom">王国</option>
-              <option value="dynasty">王朝（王家）</option>
-              <option value="origin">かつての国（出自）</option>
-              <option value="pop">人口</option>
-              <option value="devastation">戦禍</option>
-            </select>
-          </label>
+          <div class="seg" role="group" aria-label="地図の階層" id="map-levels">
+            <button type="button" data-mode="kingdom" aria-pressed="true">👑 王国</button>
+            <button type="button" data-mode="duchy" aria-pressed="false">🛡️ 公爵領</button>
+            <button type="button" data-mode="county" aria-pressed="false">🏰 伯爵領</button>
+          </div>
+          <select id="map-mode" aria-label="ほかの地図">
+            <option value="">ほかの地図…</option>
+            <option value="loyalty">諸侯の忠誠</option>
+            <option value="dynasty">王朝（王家）</option>
+            <option value="origin">かつての国（出自）</option>
+            <option value="pop">人口</option>
+            <option value="devastation">戦禍</option>
+          </select>
           <div id="map-legend" class="map-legend"></div>
         </div>
         <div class="map-wrap">

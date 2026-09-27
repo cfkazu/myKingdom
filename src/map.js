@@ -190,6 +190,83 @@ export function partition(rng, provinces, k) {
       }
       fronts[i] = [...new Set(next)];
     }
+    // 運悪くどの国も広がれなかった回でも、空きが残っていれば続ける
+    if (!changed && owner.includes(-1) && fronts.some((f) => f.length)) changed = true;
+  }
+  // それでも残った地方は、隣の国に入れる
+  for (let pass = 0; pass < provinces.length && owner.includes(-1); pass++) {
+    for (const p of provinces) {
+      if (owner[p.id] >= 0) continue;
+      const q = [...p.neighbors].find((n) => owner[n] >= 0);
+      if (q != null) owner[p.id] = owner[q];
+    }
   }
   return { capitals, owner };
+}
+
+// 公爵領：隣り合う伯爵領（地方）を 3〜5 個ずつまとめる（「本来の」まとまり＝デジュール）
+export function generateDuchies(rng, provinces) {
+  const n = provinces.length;
+  const duchyOf = new Array(n).fill(-1);
+  const groups = [];
+  const order = provinces.map((p) => p.id);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  // 端のほう（空いた隣が少ない地方）から始めると、取り残しが出にくい
+  const freeNeighbors = (id) => [...provinces[id].neighbors].filter((q) => duchyOf[q] < 0).length;
+  while (order.some((id) => duchyOf[id] < 0)) {
+    const start = order.filter((id) => duchyOf[id] < 0).sort((a, b) => freeNeighbors(a) - freeNeighbors(b))[0];
+    const target = 3 + rng.int(3);
+    const g = [start];
+    duchyOf[start] = groups.length;
+    while (g.length < target) {
+      const s = provinces[start];
+      const cands = [...new Set(g.flatMap((id) => [...provinces[id].neighbors]))].filter((q) => duchyOf[q] < 0);
+      if (!cands.length) break;
+      cands.sort((a, b) => Math.hypot(provinces[a].cx - s.cx, provinces[a].cy - s.cy) - Math.hypot(provinces[b].cx - s.cx, provinces[b].cy - s.cy));
+      duchyOf[cands[0]] = groups.length;
+      g.push(cands[0]);
+    }
+    groups.push(g);
+  }
+  // 1 つだけの公爵領は、隣のいちばん小さい公爵領に入れる
+  for (let gi = 0; gi < groups.length; gi++) {
+    const g = groups[gi];
+    if (g.length !== 1) continue;
+    const nb = [...provinces[g[0]].neighbors].map((q) => duchyOf[q]).filter((d) => d !== gi && groups[d].length > 0);
+    if (!nb.length) continue;
+    const to = nb.sort((a, b) => groups[a].length - groups[b].length)[0];
+    groups[to].push(g[0]);
+    duchyOf[g[0]] = to;
+    groups[gi] = [];
+  }
+  const duchies = [];
+  for (const g of groups) {
+    if (!g.length) continue;
+    const id = duchies.length;
+    for (const pid of g) provinces[pid].duchyId = id;
+    const main = g.map((pid) => provinces[pid]).sort((a, b) => b.area - a.area)[0];
+    const hue = rng.next() * 360;
+    duchies.push({
+      id,
+      name: main.name,
+      provinces: g,
+      color: hslHex(hue, 42 + rng.int(20), 52 + rng.int(12)),
+      cx: g.reduce((s, pid) => s + provinces[pid].cx * provinces[pid].area, 0) / g.reduce((s, pid) => s + provinces[pid].area, 0),
+      cy: g.reduce((s, pid) => s + provinces[pid].cy * provinces[pid].area, 0) / g.reduce((s, pid) => s + provinces[pid].area, 0),
+      holder: null,
+    });
+  }
+  return duchies;
+}
+
+function hslHex(h, s, l) {
+  s /= 100;
+  l /= 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }

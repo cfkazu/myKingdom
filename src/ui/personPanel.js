@@ -87,6 +87,7 @@ export class PersonPanel {
         <dt>配偶者</dt><dd>${spouses.length ? spouses.join('<br>') : '<span class="muted">なし</span>'}</dd>
         <dt>子（${kids.length}）</dt><dd class="chips">${kids.length ? kids.join('') : '<span class="muted">なし</span>'}</dd>
         ${claims.length ? `<dt>請求権</dt><dd>${claims.join('・')}</dd>` : ''}
+        ${this._fiefs(w, p)}
         ${reign ? `<dt>治世</dt><dd>${reign.from}〜${reign.to ?? ''}年（${{ inherit: '世襲', elected: '選挙', conquest: '征服', usurp: '簒奪', independence: '独立', init: '世襲' }[reign.how]}）${reign.warsWon || reign.warsLost ? `・戦勝 ${reign.warsWon} / 敗戦 ${reign.warsLost}` : ''}</dd>` : ''}
         <dt>多産さ</dt><dd>${ph.fertility.toFixed(2)} 倍</dd>
         <dt>寿命の素質</dt><dd>${ph.longevity >= 0 ? '+' : ''}${ph.longevity.toFixed(0)} 年</dd>
@@ -104,6 +105,21 @@ export class PersonPanel {
       }
     `;
     if (open && this.el.querySelector('details')) this.el.querySelector('details').open = true;
+  }
+
+  // 当主なら、持っている爵位・所領と、王への忠誠
+  _fiefs(w, p) {
+    const d = w.dyn(p);
+    if (!p.alive || !d || w.head(d) !== p || p.rulerOf != null) return '';
+    const counties = w.countiesOf(d.id);
+    const duchies = w.duchies.filter((du) => w.duchyHolderDyn(du) === d.id);
+    const k = w.kingdoms[d.kingdomId];
+    const liege = k && k.alive ? w.ruler(k) : null;
+    const o = Math.round(d.opinion ?? 0);
+    const parts = k && k.alive ? w.opinionOf(d, k).parts : [];
+    return `<dt>所領</dt><dd>${counties.length ? `${duchies.map((du) => `${esc(du.name)}公領`).concat(counties.map((pr) => `${esc(pr.name)}伯領`)).join('・')}` : '<span class="muted">なし（宮廷に仕える無領の家）</span>'}</dd>
+      ${liege ? `<dt>主君</dt><dd>${personLink(w, liege)}</dd>
+      <dt>忠誠</dt><dd><span class="opinion ${o >= 10 ? 'pos' : o <= -10 ? 'neg' : ''}">${o > 0 ? '+' : ''}${o}</span><div class="small muted">${parts.map(([v, t]) => `${esc(t)} ${v > 0 ? '+' : ''}${v}`).join('、')}</div></dd>` : ''}`;
   }
 
   _match(w, a, b) {
