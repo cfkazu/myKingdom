@@ -716,7 +716,19 @@ export class World {
     this._endReign(k, ruler);
     const verb = { 戦死: '戦場で倒れた', 処刑: '処刑された', 暗殺: '暗殺された' }[cause] ?? '崩御した';
     this.addLog('death', `${this.pn(ruler)} が${verb}（${this.age(ruler)}歳・${cause}）。`, [k.id]);
+    const big = this.provincesOf(k).length > this.provinces.length * 0.25;
     this._succeed(k, ruler);
+    // 大きな王国では、王の死のたびに王子や王弟が王位をうかがう
+    if (big && k.alive && k.law !== 'elective') {
+      const heir = this.ruler(k);
+      const kin = [...ruler.children, ...(this.get(ruler.fatherId)?.children ?? [])].map((id) => this.get(id));
+      const rivals = kin.filter((p) => p && p.alive && p !== heir && p.rulerOf == null && this.age(p) >= 16 && p.dynastyId === ruler.dynastyId && p.pheno.ambition > 45);
+      for (const p of rivals) {
+        if (p.claims.includes(k.id) || !this.rng.chance(0.6)) continue;
+        p.claims.push(k.id);
+        this.addLog('succession', `${this.pn(p)} は ${heir ? this.pn(heir) : '新王'} の即位を認めず、${this.kn(k)} の王位を主張している。`, [k.id]);
+      }
+    }
   }
 
   _endReign(k, ruler) {
@@ -1250,6 +1262,14 @@ export class World {
     if (kind === 'conquest' || kind === 'claim') {
       w.attackerAllies = this.alliesOf(attacker.id).filter((a) => a !== defender.id && !this.allied(a, defender.id) && this.rng.chance(0.5));
       w.defenderAllies = this.alliesOf(defender.id).filter((a) => a !== attacker.id && !this.allied(a, attacker.id) && !w.attackerAllies.includes(a) && this.rng.chance(0.75));
+      // 包囲網：大陸の 3 分の 1 を超える国が攻めてきたら、ほかの国々が守り手に味方する
+      if (kind === 'conquest' && this.provincesOf(attacker).length > this.provinces.length * 0.33) {
+        for (const o of this.aliveKingdoms()) {
+          if (o === attacker || o === defender || this.allied(o.id, attacker.id) || w.defenderAllies.includes(o.id) || w.attackerAllies.includes(o.id)) continue;
+          if (this.rng.chance(0.6)) w.defenderAllies.push(o.id);
+        }
+        w.coalition = true;
+      }
     }
     this.wars.push(w);
     w.name = this._warName(w);
@@ -1273,7 +1293,8 @@ export class World {
       const r = this.ruler(k);
       if (!r || this.age(r) < 18) continue;
       const ph = r.pheno;
-      const agg = (0.015 + 0.05 * (ph.ambition / 100) - 0.02 * (ph.kindness / 100) + (r.mad ? 0.06 : 0) + (this.martial(r) - 50) / 2000) * this.warLust();
+      const hegemon = this.provincesOf(k).length > this.provinces.length * 0.33 ? 0.6 : 1;
+      const agg = (0.015 + 0.05 * (ph.ambition / 100) - 0.02 * (ph.kindness / 100) + (r.mad ? 0.06 : 0) + (this.martial(r) - 50) / 2000) * this.warLust() * hegemon;
       if (agg <= 0) continue;
       const myPow = this.power(k);
       // 請求権の戦争：王本人・配偶者・子が持つ請求権
@@ -1309,7 +1330,7 @@ export class World {
       }
       if (best && this.rng.chance(agg * clamp(bestRatio - 0.6, 0, 1.6))) {
         const w = this._startWar('conquest', k, best);
-        this.addLog('war', `${this.pn(r)} が ${this.kn(best)} に宣戦した（${w.name}）。${this._alliesText(w)}`, [k.id, best.id]);
+        this.addLog('war', `${this.pn(r)} が ${this.kn(best)} に宣戦した（${w.name}）。${w.coalition && w.defenderAllies.length ? '強くなりすぎた国を恐れ、諸国が包囲網をつくった。' : ''}${this._alliesText(w)}`, [k.id, best.id]);
       }
     }
   }
@@ -1329,8 +1350,10 @@ export class World {
       if (side === 'A') {
         let s = 0;
         for (const pr of this.provinces) if (pr.ownerId === main.id && ex.has(pr.holder)) s += this.countyLevy(pr);
-        return s * 1.4 + 2;
+        return s * 1.2 + 2;
       }
+      // 王に不満な諸侯は、反乱の鎮圧に兵を出さない
+      for (const d of this.vassals(main)) if ((d.opinion ?? 0) < -15) ex.add(d.id);
       return this.power(main, ex) + w.defenderAllies.reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
     }
     const allies = side === 'A' ? w.attackerAllies : w.defenderAllies;
@@ -1386,8 +1409,9 @@ export class World {
     const pD = this._sidePower(w, 'D');
     const mA = cA ? this.martial(cA) : 30;
     const mD = cD ? this.martial(cD) : 30;
-    const sA = pA * (0.5 + mA / 100) * Math.exp(0.35 * this.rng.normal());
-    const sD = pD * (0.5 + mD / 100) * Math.exp(0.35 * this.rng.normal()) * 1.1;
+    // 守る側の地の利：ふつうは守り手、反乱では自分の土地で戦う反乱軍
+    const sA = pA * (0.5 + mA / 100) * Math.exp(0.35 * this.rng.normal()) * (civil ? 1.05 : 1);
+    const sD = pD * (0.5 + mD / 100) * Math.exp(0.35 * this.rng.normal()) * (civil ? 1 : 1.1);
     const aWins = sA > sD;
     const margin = Math.abs(sA - sD) / Math.max(sA, sD, 1e-9);
     w.score += (aWins ? 1 : -1) * (15 + 45 * margin);

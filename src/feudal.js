@@ -143,6 +143,12 @@ export const FeudalMixin = {
     if (r.pheno.kindness < 25) add(-8, '王の冷酷さ');
     const held = this.countiesOf(d.id, k.id);
     if (held.length >= 3) add(-(held.length - 2) * 5, '大きすぎる所領');
+    const seat = this.provinces[d.homeProvinceId];
+    const cap = this.provinces[k.capital];
+    if (seat && cap) {
+      const dist = Math.hypot(seat.cx - cap.cx, seat.cy - cap.cy);
+      if (dist > 18) add(-(dist - 18) * 0.7, '遠い王');
+    }
     if (held.some((pr) => pr.origin !== k.origin && !this.kingdoms[pr.origin]?.alive)) add(-12, `かつての${this.kingdoms[held.find((pr) => pr.origin !== k.origin).origin].name}の民`);
     for (const m of d.memory ?? []) {
       if (m.rulerDyn !== r.dynastyId) continue;
@@ -158,6 +164,13 @@ export const FeudalMixin = {
     return clamp(0.55 + (d.opinion ?? 0) / 110, 0.1, 1.05);
   },
 
+  // 首都から遠い土地ほど、王の目が届かず兵が集まりにくい
+  reach(pr, k) {
+    const cap = this.provinces[k.capital];
+    const dist = cap ? Math.hypot(pr.cx - cap.cx, pr.cy - cap.cy) : 0;
+    return clamp(1.15 - dist / 50, 0.45, 1);
+  },
+
   countyLevy(pr) {
     return pr.pop * 0.025 * (1 - pr.devastation * 0.5);
   },
@@ -168,7 +181,7 @@ export const FeudalMixin = {
     for (const pr of this.provinces) {
       if (pr.ownerId !== k.id) continue;
       if (exclude && pr.holder != null && exclude.has(pr.holder)) continue;
-      const base = this.countyLevy(pr);
+      const base = this.countyLevy(pr) * this.reach(pr, k);
       s += this.isDemesne(pr) ? base * 1.15 : base * this.levyFactor(this.dynasties[pr.holder]);
     }
     const r = this.ruler(k);
@@ -359,7 +372,7 @@ export const FeudalMixin = {
         if (internal) continue;
         // 十分に強くなったら、反乱を起こす
         const weak = this.weakness(k);
-        const need = kind === 'independence' ? 0.35 : 0.5;
+        const need = kind === 'independence' ? 0.45 : 0.6;
         if (ratio < need / Math.sqrt(weak)) continue;
         if (!this.rng.chance(kind === 'claimant' ? 0.3 : 0.2)) continue;
         this._rebel(k, kind, leader, members, others);
@@ -370,6 +383,11 @@ export const FeudalMixin = {
 
   _rebel(k, kind, leader, members) {
     const r = this.ruler(k);
+    // ほかの不満な諸侯も、この機に加わることがある
+    for (const d of this.vassals(k)) {
+      if (members.includes(d) || (d.opinion ?? 0) >= -5) continue;
+      if (this.rng.chance(0.3)) members.push(d);
+    }
     const ids = members.map((d) => d.id);
     const provinces = this.provinces.filter((pr) => pr.ownerId === k.id && ids.includes(pr.holder)).map((pr) => pr.id);
     const names = members.map((d) => `${d.name}家`).join('・');
