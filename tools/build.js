@@ -19,13 +19,25 @@ function visit(file) {
 }
 visit(resolve(root, 'src/main.js'));
 
-// import 文を消し、export を外して 1 つのスコープにつなぐ（トップレベルの名前は全モジュールで重ならない前提）
+// 各モジュールを自分のスコープ（即時関数）に包み、export した名前だけを返す。
+// import は、依存先のモジュールの戻り値からの分割代入に置き換える（ファイルをまたいで同じ名前があってもぶつからない）
+const modName = (f) => `__m_${relative(root, f).replace(/[^A-Za-z0-9]/g, '_')}`;
 const js = order
   .map((f) => {
-    const src = readFileSync(f, 'utf8')
-      .replace(/^import\s[^;]*?;\n/gms, '')
+    let src = readFileSync(f, 'utf8');
+    const exported = [...src.matchAll(/^export\s+(?:const|function|class|let)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+    src = src
+      .replace(/^import\s*\{([^}]*)\}\s*from\s*'([^']+)';\n/gm, (_, names, from) => {
+        const list = names
+          .split(',')
+          .map((n) => n.trim())
+          .filter(Boolean)
+          .map((n) => n.replace(/\s+as\s+/, ': '));
+        return `const { ${list.join(', ')} } = ${modName(resolve(dirname(f), from))};\n`;
+      })
       .replace(/^export\s+(?=(const|function|class|let)\b)/gm, '');
-    return `// ── ${relative(root, f)} ──\n${src}`;
+    if (/^import\s/m.test(src)) throw new Error(`${relative(root, f)}: 対応していない import の書き方があります`);
+    return `// ── ${relative(root, f)} ──\nconst ${modName(f)} = (() => {\n${src}\nreturn { ${exported.join(', ')} };\n})();`;
   })
   .join('\n');
 
