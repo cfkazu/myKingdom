@@ -87,7 +87,7 @@ export const PlayerMixin = {
   marriageCandidates(p, limit = 5) {
     const out = [];
     for (const c of this.living) {
-      if (!c.alive || c.sex === p.sex || c.spouseId != null || c === p) continue;
+      if (!c.alive || c.sex === p.sex || c.spouseId != null || c === p || c.imprisoned || c.cloistered) continue;
       const ca = this.age(c);
       if (c.sex === 'F' ? ca < 15 || ca > 40 : ca < 16 || ca > 62) continue;
       if (this.isPlayerHouse(c) && this.playerControls(c)) continue;
@@ -135,7 +135,7 @@ export const PlayerMixin = {
 
   _playerMarriages(market) {
     for (const p of market) {
-      if (!this.playerControls(p) || p.spouseId != null) continue;
+      if (!this.playerControls(p) || p.spouseId != null || p.imprisoned || p.cloistered) continue;
       const a = this.age(p);
       if (a < 16) continue;
       if (this.player.decisions.some((d) => d.type === 'marriage' && d.personId === p.id)) continue;
@@ -171,6 +171,7 @@ export const PlayerMixin = {
     if (i < 0) return null;
     const d = this.player.decisions[i];
     this.player.decisions.splice(i, 1);
+    if (d.type === 'event') return this._resolveEvent(d, choice);
     if (d.type === 'marriage') {
       const p = this.get(d.personId);
       if (!p.alive || p.spouseId != null || choice === 'later') return null;

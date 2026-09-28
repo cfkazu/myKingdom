@@ -12,6 +12,7 @@ import { CULTURES, givenName, dynastyName, kingdomName, regnalSuffix } from './n
 import { generateMap, partition, generateDuchies } from './map.js';
 import { FeudalMixin, setupFeudal } from './feudal.js';
 import { PlayerMixin } from './player.js';
+import { EventsMixin, isSetAside } from './events.js';
 
 export const ADULT = 16;
 
@@ -184,7 +185,7 @@ export class World {
     for (const p of this.living) {
       if (!p.alive || p.dynastyId !== d.id) continue;
       const a = this.age(p);
-      const s = (p.rulerOf != null ? 1000 : 0) + (a >= ADULT ? 200 : 0) + (p.sex === 'M' ? 100 : 0) + Math.min(a, 70);
+      const s = (p.rulerOf != null ? 1000 : 0) + (a >= ADULT ? 200 : 0) + (p.sex === 'M' ? 100 : 0) + Math.min(a, 70) - (isSetAside(p) ? 600 : 0);
       if (s > bestScore) {
         bestScore = s;
         best = p;
@@ -518,6 +519,7 @@ export class World {
     this._factions();
     this._housekeeping();
     this._playerTick();
+    this._playerEvents();
     this._record();
   }
 
@@ -614,6 +616,7 @@ export class World {
     h *= Math.exp((100 - ph.vigor) / 35);
     if (ph.hemophilia && p.sex === 'M') h += a < 25 ? 0.03 : 0.015;
     if (p.mad) h *= 1.3;
+    if (p.frail) h *= 4;
     if (this.plague) h += this.plague.severity * (1 - ph.resistance) * 1.6;
     return h;
   }
@@ -678,7 +681,7 @@ export class World {
         if (out.length >= limit) return;
         if (visited.has(c.id)) continue;
         visited.add(c.id);
-        if (c.alive) out.push(c);
+        if (c.alive && !isSetAside(c)) out.push(c);
         dfs(c, depth + 1);
       }
     };
@@ -705,7 +708,7 @@ export class World {
   electionCandidates(k, ruler = null) {
     const cands = new Set();
     for (const p of this.living) {
-      if (!p.alive || p.kingdomId !== k.id || this.age(p) < ADULT || p.rulerOf != null) continue;
+      if (!p.alive || p.kingdomId !== k.id || this.age(p) < ADULT || p.rulerOf != null || isSetAside(p)) continue;
       if (ruler && p.dynastyId === ruler.dynastyId) cands.add(p);
     }
     for (const d of this.dynasties) {
@@ -1031,7 +1034,7 @@ export class World {
     const men = [];
     const women = [];
     for (const p of this.living) {
-      if (!p.alive || p.spouseId != null) continue;
+      if (!p.alive || p.spouseId != null || p.imprisoned || p.cloistered) continue;
       const a = this.age(p);
       const important = p.rulerOf != null || this.royalOf(p) || this.isHeirAnywhere(p);
       const market = important ? 0.85 : 0.5;
@@ -1145,7 +1148,13 @@ export class World {
 
   _birth(w, h, twin = false) {
     w.lastBirthYear = this.year;
-    const z = fertilize(makeGamete(w.genome, 'F', this.rng, this.o.mutationRate), makeGamete(h.genome, 'M', this.rng, this.o.mutationRate));
+    // プレイヤーの当主の妻は、ごくまれに別の男の子を産む（不義の子の噂のもと）
+    let sire = h;
+    if (this.player && !this.player.over && h === this.playerHead() && this.rng.chance(0.04)) {
+      const men = this.living.filter((x) => x.alive && x.sex === 'M' && x !== h && x.kingdomId === w.kingdomId && this.age(x) >= 18 && this.age(x) <= 50 && x.genome);
+      if (men.length) sire = this.rng.pick(men);
+    }
+    const z = fertilize(makeGamete(w.genome, 'F', this.rng, this.o.mutationRate), makeGamete(sire.genome, 'M', this.rng, this.o.mutationRate));
     const env = randomEnv(this.rng);
     const ph = express(z.genome, env);
     if (!twin && this.rng.chance(0.012 + (this.age(w) > 35 ? 0.02 : 0))) {
@@ -1175,6 +1184,7 @@ export class World {
       name: this._childName(z.sex, w, h, culture, dynastyId),
     });
     this.stats.births++;
+    if (sire !== h) c.trueFatherId = sire.id;
     this._fx('birth', this.homeProvince(c), c.id, h.rulerOf != null || w.rulerOf != null);
     const rk = this.royalOf(c);
     if (rk && (h.rulerOf != null || w.rulerOf != null)) {
@@ -1816,4 +1826,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin);

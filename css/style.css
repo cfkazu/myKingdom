@@ -1364,3 +1364,10 @@ select:focus-visible {
 .queue .badge {
   margin: 0 2px;
 }
+
+.event-text {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 60ch;
+}

@@ -29,7 +29,8 @@ test('遊ぶ家：当主と子の縁談と教育はプレイヤーが決め、AI
     // 決断を出さないまま（まだ選んでいない）人が結婚していたら、AI が決めたことになる
     for (const [id, sp] of before) {
       const p = w.get(id);
-      if (sp == null && p.spouseId != null && p.alive) aiMarriedChild++;
+      // 年の途中で当主が代わり、プレイヤーの手を離れた人（前の当主の子→今の当主のきょうだい）は除く
+      if (sp == null && p.spouseId != null && p.alive && w.playerControls(p)) aiMarriedChild++;
     }
     for (const x of [...w.pendingDecisions()]) {
       if (x.type in seen) seen[x.type]++;
@@ -93,4 +94,30 @@ test('家が絶えたら、おしまいの知らせが来る', () => {
   w.step();
   assert.equal(w.player.over, true);
   assert.equal(w.pendingDecisions()[0]?.type, 'end');
+});
+
+test('イベント：6 種類とも起こり、継承から外した人は継承順位から消える', () => {
+  const seen = new Set();
+  let setAsideOk = true;
+  for (const seed of ['ev-a', 'ev-b', 'ev-c', 'ev-d']) {
+    const w = new World({ seed });
+    const k = w.aliveKingdoms()[0];
+    w.setPlayer(seed.endsWith('b') || seed.endsWith('d') ? w.dynasties.find((x) => w.houseRank(x) === 'count').id : w.ruler(k).dynastyId);
+    for (let i = 0; i < 250 && !w.player.over; i++) {
+      w.step();
+      for (const d of [...w.pendingDecisions()]) {
+        if (d.type === 'event') {
+          seen.add(d.key);
+          const opt = d.options.find((o) => ['pass', 'disown', 'imprison'].includes(o.id)) ?? d.options[0];
+          w.decide(d.id, opt.id);
+          const p = w.get(d.personId);
+          if ((p.passedOver || p.imprisoned) && w.aliveKingdoms().some((kk) => w.successionLine(kk, 20).includes(p))) setAsideOk = false;
+          continue;
+        }
+        w.decide(d.id, String({ marriage: d.candidateIds?.[0] ?? 'lowborn', education: 'learning', grant: d.candidateDynIds?.[0] ?? 'knight', faction: 'decline', end: 'ok' }[d.type]));
+      }
+    }
+  }
+  assert.ok(seen.size >= 5, `起きたイベントが少ない：${[...seen].join(',')}`);
+  assert.ok(setAsideOk, '継承から外した人が継承順位に残っている');
 });

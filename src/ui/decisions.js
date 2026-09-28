@@ -5,7 +5,7 @@ import { EDUCATION } from '../player.js';
 import { HAIR_LABEL, EYE_LABEL } from '../genes.js';
 import { kinshipLabel } from '../pedigree.js';
 import { portraitSVG } from './portrait.js';
-import { esc, personLink, kingdomLink } from './util.js';
+import { esc, personLink, kingdomLink, richText } from './util.js';
 
 const pct = (x, n) => `${Math.round((100 * x) / Math.max(1, n))}%`;
 
@@ -36,8 +36,8 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { marriage: () => this._marriage(w, d), education: () => this._education(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d) }[d.type]();
-    const label = { marriage: '💍 縁談', education: '📚 教育', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d) }[d.type]();
+    const label = { event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
@@ -171,6 +171,18 @@ export class DecisionPanel {
       <p class="small muted">加わると、派閥が十分に強くなったときに反乱が始まり、あなたの家も戦います。勝てば見返りがありますが、負ければ盟主の家は所領を失い、同志も罰を受けます。いまの反乱軍と王の兵力の比：およそ ${Math.round(odds.ratio * 100)}%</p>
       <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="join">加わる</button><button type="button" data-id="${d.id}" data-choice="wait">保留する（3 年後にまた）</button><button type="button" data-id="${d.id}" data-choice="decline">断る</button></p>
       <p class="small muted">断っても罰はありません（8 年ほどは誘われなくなります）。加わったあとも、派閥が立ち上がるまでは何も起きません。</p>
+    </div>`;
+  }
+
+  // ───────── イベント ─────────
+
+  _event(w, d) {
+    const p = w.get(d.personId);
+    const icon = { hemo: '🩸', mad: '🌀', plot: '🗡️', appease: '🤝', rumor: '👂', last: '🕯️' }[d.key] ?? '📜';
+    return `<div class="decision">
+      <div class="decision-head">${p ? portraitSVG(w, p, 64) : ''}<div><div class="eyebrow">${icon} ${esc(d.title)}</div>
+      <p class="event-text">${richText(w, d.text)}</p></div></div>
+      <div class="opts">${d.options.map((o) => `<button type="button" class="opt" data-id="${d.id}" data-choice="${o.id}"><b>${esc(o.label)}</b><span class="small">${esc(o.desc)}</span></button>`).join('')}</div>
     </div>`;
   }
 
