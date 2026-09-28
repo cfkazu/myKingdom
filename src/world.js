@@ -198,7 +198,11 @@ export class World {
     if (p.rulerOf != null) return `${this.kingdoms[p.rulerOf].name}${p.sex === 'M' ? '王' : '女王'}`;
     for (const k of this.kingdoms) {
       if (!k.alive) continue;
-      if (k.heirId === p.id) return `${k.name}の${p.sex === 'M' ? '王太子' : '王太女'}`;
+      if (k.heirId === p.id) {
+        const r = this.ruler(k);
+        const child = r && (p.fatherId === r.id || p.motherId === r.id);
+        return `${k.name}の${child ? (p.sex === 'M' ? '王太子' : '王太女') : '王位継承者'}`;
+      }
       if (k.regentId === p.id) return `${k.name}の摂政`;
     }
     const sp = p.spouseId != null ? this.get(p.spouseId) : null;

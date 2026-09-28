@@ -60,7 +60,8 @@ export class StatsPanel {
     const h = w.history;
     const xs = h.map((r) => r.year);
     const seen = w.kingdoms.filter((k) => h.some((r) => r.kingdoms[k.id]));
-    this.land.setSeries(seen.map((k) => ({ label: k.name, color: k.color })));
+    const dup = (k) => seen.filter((o) => o.name === k.name).length > 1;
+    this.land.setSeries(seen.map((k) => ({ label: dup(k) ? `${k.name}（${k.foundedYear}〜${k.alive ? '' : k.endYear}）` : k.name, color: k.color })));
     this.land.setData(
       xs,
       seen.map((k) => h.map((r) => r.kingdoms[k.id]?.provinces ?? 0)),

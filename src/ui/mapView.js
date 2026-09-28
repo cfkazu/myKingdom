@@ -167,6 +167,10 @@ export class MapView {
   }
 
   legendHTML() {
+    return `${this._modeLegend()}<div class="icon-legend">● 貴族（金の縁＝王族・白い縁＝当主・中の白丸＝女性）　· 領民　🏰 城（旗＝持ち主）　♛ 首都　⚑ 軍勢　⚔️ 会戦</div>`;
+  }
+
+  _modeLegend() {
     const w = this.world;
     if (this.mode === 'kingdom' || this.mode === 'origin') {
       const ks = this.mode === 'kingdom' ? w.aliveKingdoms() : [...new Set(w.provinces.map((p) => p.origin))].map((id) => w.kingdoms[id]);

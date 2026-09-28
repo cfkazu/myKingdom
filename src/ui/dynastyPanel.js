@@ -7,6 +7,10 @@ export class DynastyPanel {
   constructor(el, app) {
     this.el = el;
     this.app = app;
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-follow]');
+      if (b) app.follow(Number(b.dataset.follow));
+    });
   }
 
   render() {
@@ -45,6 +49,7 @@ export class DynastyPanel {
     const parent = d.parentId != null ? w.dynasties[d.parentId] : null;
     return `
       <h2><span class="kdot" style="background:${d.color}"></span>${esc(d.name)}家 <span class="small muted">${d.foundedYear}年〜${d.extinct ? `${d.extinctYear}年（断絶）` : ''}</span></h2>
+      <p>${!d.extinct && this.app.followDynasty !== d.id ? `<button type="button" data-follow="${d.id}">📌 この家を追う</button>` : ''}</p>
       <dl class="kv">
         <dt>本拠</dt><dd>${home ? esc(home.name) : '—'}${home && home.ownerId >= 0 ? `（${kingdomLink(w.kingdoms[home.ownerId])}）` : ''}</dd>
         ${parent ? `<dt>本家</dt><dd>${esc(parent.name)}家</dd>` : ''}

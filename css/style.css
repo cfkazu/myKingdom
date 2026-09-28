@@ -1154,3 +1154,27 @@ select:focus-visible {
     white-space: normal;
   }
 }
+
+.icon-legend {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.follow-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 2px solid var(--gold);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.follow-bar button {
+  margin-left: auto;
+  padding: 2px 10px;
+}

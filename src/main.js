@@ -25,6 +25,7 @@ class App {
     this.tab = 'person';
     this.logFilter = 'major';
     this.followKingdom = null;
+    this.followDynasty = null;
     this.map = new MapView($('#map'), $('#map-tip'), null, {
       onSelectKingdom: (id) => this.selectKingdom(id, true),
       onSelectPerson: (id) => this.selectPerson(id),
@@ -56,6 +57,7 @@ class App {
     this.selectedPerson = big.rulerId;
     this.map.selectedPerson = big.rulerId;
     this.followKingdom = big.id;
+    this.followDynasty = null;
     this.renderSettings();
     this.renderAll(true);
   }
@@ -98,6 +100,7 @@ class App {
     };
     bindLinks($('#log'), links);
     bindLinks($('#court'), links);
+    bindLinks($('#follow-bar'), links);
     for (const id of ['#tab-person', '#tab-family', '#tab-realm', '#tab-dynasty']) bindLinks($(id), links);
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName)) {
@@ -195,6 +198,44 @@ class App {
     this.showTab('dynasty');
   }
 
+  // 家を追う：当主が亡くなると次の当主に切り替わる。年代記もその家に絞る
+  follow(dynId) {
+    this.followDynasty = dynId;
+    const d = dynId != null ? this.world.dynasties[dynId] : null;
+    const h = d ? this.world.head(d) : null;
+    if (h) {
+      this._followedHead = h.id;
+      this.selectedPerson = h.id;
+      this.map.selectedPerson = h.id;
+    }
+    if (d) {
+      this.logFilter = 'house';
+      $('#log-filter').value = 'house';
+      this.renderLog(true);
+    } else if (this.logFilter === 'house') {
+      this.logFilter = 'major';
+      $('#log-filter').value = 'major';
+      this.renderLog(true);
+    }
+    this.renderFollowBar();
+    this.showTab('person');
+  }
+
+  renderFollowBar() {
+    const el = $('#follow-bar');
+    const w = this.world;
+    const d = this.followDynasty != null ? w.dynasties[this.followDynasty] : null;
+    if (!d) {
+      el.hidden = true;
+      return;
+    }
+    const h = w.head(d);
+    const title = h ? w.titleOf(h) : '';
+    el.hidden = false;
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>📌 ${d.name}家を追っています</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>`;
+    el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
+  }
+
   pin(id) {
     this.pinned = id;
     this.renderPanel();
@@ -203,7 +244,19 @@ class App {
   renderAll(fresh = false) {
     const w = this.world;
     const sel = this.selectedPerson != null ? w.get(this.selectedPerson) : null;
-    if (sel && !sel.alive && this.followKingdom != null) {
+    // 追っている家があれば、いつも当主を映す
+    const fd = this.followDynasty != null ? w.dynasties[this.followDynasty] : null;
+    if (fd) {
+      const h = fd.extinct ? null : w.head(fd);
+      if (!h) {
+        this.followDynasty = null;
+      } else if (!sel || !sel.alive || (sel.dynastyId === fd.id && sel !== h && sel.id === this._followedHead)) {
+        this.selectedPerson = h.id;
+        this.map.selectedPerson = h.id;
+      }
+      this._followedHead = h ? h.id : null;
+    }
+    if (sel && !sel.alive && this.followKingdom != null && !fd) {
       const k = w.kingdoms[this.followKingdom];
       const next = k && k.alive ? w.ruler(k) : null;
       if (next) {
@@ -231,6 +284,7 @@ class App {
     this.map.yearAdvanced(this.playing ? 1000 / this.speed : 0);
     this.court.render();
     this.renderLog(fresh);
+    this.renderFollowBar();
     this.renderPanel();
   }
 
@@ -242,7 +296,15 @@ class App {
   _logMatch(e) {
     const f = this.logFilter;
     if (f === 'all') return true;
-    if (f === 'kingdom') return this.selectedKingdom != null && e.kingdoms.includes(this.selectedKingdom);
+    if (f === 'kingdom') {
+      const p = this.selectedPerson != null ? this.world.get(this.selectedPerson) : null;
+      const kid = this.selectedKingdom ?? p?.kingdomId;
+      return kid != null && e.kingdoms.includes(kid);
+    }
+    if (f === 'house') {
+      if (this.followDynasty == null) return false;
+      return [...e.text.matchAll(/\{p:(\d+)\}/g)].some((m) => this.world.get(Number(m[1]))?.dynastyId === this.followDynasty) || e.text.includes(`${this.world.dynasties[this.followDynasty].name}家`);
+    }
     if (f === 'marriage') return e.kind === 'marriage' || e.kind === 'birth';
     if (f === 'succession') return e.kind === 'succession' || e.kind === 'dynasty';
     if (f === 'major') return ['succession', 'dynasty', 'event', 'gene'].includes(e.kind) || (e.kind === 'war' && /宣戦|終わ|蜂起|反旗|鎮圧|滅/.test(e.text)) || (e.kind === 'death' && /崩御|倒れた|処刑|暗殺|噂/.test(e.text));
