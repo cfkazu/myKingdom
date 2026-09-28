@@ -11,6 +11,7 @@ import { Pedigree } from './pedigree.js';
 import { CULTURES, givenName, dynastyName, kingdomName, regnalSuffix } from './names.js';
 import { generateMap, partition, generateDuchies } from './map.js';
 import { FeudalMixin, setupFeudal } from './feudal.js';
+import { PlayerMixin } from './player.js';
 
 export const ADULT = 16;
 
@@ -70,6 +71,7 @@ export class World {
     this.usedKingdom = new Set();
     this.stats = this._freshStats();
     this.headCache = new Map();
+    this.player = null;
     this.map = generateMap(this.rng, { provinces: this.o.provinces });
     this.provinces = this.map.provinces;
     this.duchies = generateDuchies(this.rng, this.provinces);
@@ -515,6 +517,7 @@ export class World {
     this._declareWars();
     this._factions();
     this._housekeeping();
+    this._playerTick();
     this._record();
   }
 
@@ -961,6 +964,7 @@ export class World {
       const heir = this.heirOf(k);
       if (!r || !heir || !heir.alive || this.age(heir) < 18 || heir.rulerOf != null) continue;
       if (heir.fatherId === r.id || heir.motherId === r.id) continue; // 親殺しはしない
+      if (this.isPlayerHouse(r) || this.isPlayerHouse(heir)) continue;
       const ph = heir.pheno;
       if (ph.ambition < 70 || ph.kindness > 35) continue;
       const p = 0.012 * ((ph.ambition - 60) / 20) * (heir.mad ? 2 : 1);
@@ -1033,6 +1037,15 @@ export class World {
       const market = important ? 0.85 : 0.5;
       if (p.sex === 'M' && a >= 16 && a <= 62 && this.rng.chance(market)) men.push(p);
       else if (p.sex === 'F' && a >= 15 && a <= 40 && this.rng.chance(market)) women.push(p);
+    }
+    // プレイヤーの家の近親の縁談は、プレイヤーが選ぶ
+    if (this.player && !this.player.over) {
+      const mine = [...men, ...women].filter((p) => this.playerControls(p));
+      if (mine.length) {
+        const drop = new Set(mine.map((p) => p.id));
+        for (const list of [men, women]) for (let i = list.length - 1; i >= 0; i--) if (drop.has(list[i].id)) list.splice(i, 1);
+        this._playerMarriages(mine);
+      }
     }
     const pairs = [];
     for (const m of men) {
@@ -1323,7 +1336,7 @@ export class World {
 
   _declareWars() {
     for (const k of this.kingdoms) {
-      if (!k.alive || k.regentId != null) continue;
+      if (!k.alive || k.regentId != null || k === this.playerKingdom()) continue;
       if (this.activeWars(k.id).some((w) => w.attackerId === k.id || w.kind === 'civil' || w.kind === 'independence')) continue;
       const r = this.ruler(k);
       if (!r || this.age(r) < 18) continue;
@@ -1799,4 +1812,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin);

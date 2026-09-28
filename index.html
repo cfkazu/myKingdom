@@ -74,10 +74,11 @@
             <li><b>▶ 再生</b>（またはスペースキー）で時間が進みます。王侯貴族が結婚し、子を残し、王位を継ぎ、戦い、反乱します。</li>
             <li>地図の<b>点は一人ひとりの貴族</b>です。点・年代記の名前・地図の下の<b>宮廷の肖像</b>をクリックすると、その人の姿・遺伝子・家族が見られます。</li>
             <li>地図の<b>👑 王国／🛡️ 公爵領／🏰 伯爵領</b>で見る階層を、「ほかの地図」で遺伝病や諸侯の忠誠を切り替えられます。</li>
-            <li>しくみは<b>図鑑</b>タブに。気に入った王家を追いかけて、血筋の行く末を眺めてください。</li>
+            <li>遊ぶ家を選ぶと、その当主として<b>縁談・跡継ぎの教育・恩賞・宣戦・反乱</b>を決められます。決断のときは時間が止まります。眺めるだけでも楽しめます。しくみは<b>図鑑</b>タブに。</li>
           </ol>
-          <button type="button" id="intro-close" class="primary">はじめる</button>
+          <button type="button" id="intro-close" class="primary">はじめる（遊ぶ家を選ぶ）</button>
         </div>
+        <section id="decision" class="decision-wrap" hidden aria-live="polite"></section>
         <div id="follow-bar" class="follow-bar" hidden></div>
         <nav class="tabs" role="tablist">
           <button type="button" role="tab" data-tab="person" aria-selected="true">人物</button>
@@ -116,6 +117,7 @@
       </section>
     </main>
 
+    <div id="toast" class="toast" role="status" hidden></div>
     <script type="module" src="src/main.js"></script>
   </body>
 </html>

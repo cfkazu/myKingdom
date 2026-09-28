@@ -273,6 +273,15 @@ export const FeudalMixin = {
     if (!r || this.age(r) < 16) return;
     const demesne = this.demesneOf(k);
     const limit = this.demesneLimit(k);
+    // プレイヤーの国：恩賞は自分で決め、没収も自分で行う
+    if (k === this.playerKingdom()) {
+      if (demesne.length > limit && (k.keepUntil ?? 0) <= this.year) {
+        const cap = this.provinces[k.capital];
+        const give = demesne.filter((pr) => pr.id !== k.capital).sort((a, b) => Math.hypot(b.cx - cap.cx, b.cy - cap.cy) - Math.hypot(a.cx - cap.cx, a.cy - cap.cy))[0];
+        if (give) this._playerGrantDecision(k, give);
+      }
+      return;
+    }
     if (demesne.length > limit) {
       const cap = this.provinces[k.capital];
       const give = demesne.filter((pr) => pr.id !== k.capital).sort((a, b) => Math.hypot(b.cx - cap.cx, b.cy - cap.cy) - Math.hypot(a.cx - cap.cx, a.cy - cap.cy))[0];
@@ -347,6 +356,12 @@ export const FeudalMixin = {
       claimants.sort((a, b) => (b.kingdomId === k.id) - (a.kingdomId === k.id) || this.charm(b) - this.charm(a));
       const groups = { usurp: [], claimant: [], independence: [] };
       for (const d of this.vassals(k)) {
+        // プレイヤーの家は、誘いに応じたときだけ派閥に入る
+        const pj = this.player && !this.player.over && d.id === this.player.dynastyId ? this.player.joined : undefined;
+        if (pj !== undefined) {
+          if (pj && pj.kingdomId === k.id) groups[pj.kind].push(d);
+          continue;
+        }
         const o = d.opinion ?? 0;
         if (o > -10) continue;
         const h = this.head(d);
@@ -399,6 +414,7 @@ export const FeudalMixin = {
     // ほかの不満な諸侯も、この機に加わることがある
     for (const d of this.vassals(k)) {
       if (members.includes(d) || (d.opinion ?? 0) >= -5) continue;
+      if (this.player && d.id === this.player.dynastyId && !(this.player.joined && this.player.joined.kingdomId === k.id)) continue;
       if (this.rng.chance(0.3)) members.push(d);
     }
     const ids = members.map((d) => d.id);

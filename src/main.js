@@ -9,6 +9,7 @@ import { DynastyPanel } from './ui/dynastyPanel.js';
 import { StatsPanel } from './ui/statsPanel.js';
 import { renderGuide } from './ui/guidePanel.js';
 import { Court } from './ui/court.js';
+import { DecisionPanel } from './ui/decisions.js';
 import { richText, bindLinks, esc } from './ui/util.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -31,6 +32,8 @@ class App {
       onSelectPerson: (id) => this.selectPerson(id),
     });
     this.court = new Court($('#court'), this);
+    this.decisionPanel = new DecisionPanel($('#decision'), this);
+    this.choosing = false;
     this.panels = {
       person: new PersonPanel($('#tab-person'), this),
       family: new FamilyTree($('#tab-family'), this),
@@ -101,6 +104,7 @@ class App {
     bindLinks($('#log'), links);
     bindLinks($('#court'), links);
     bindLinks($('#follow-bar'), links);
+    bindLinks($('#decision'), links);
     for (const id of ['#tab-person', '#tab-family', '#tab-realm', '#tab-dynasty']) bindLinks($(id), links);
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName)) {
@@ -126,8 +130,13 @@ class App {
       } catch {
         // 保存できなくても困らない
       }
-      this.setPlaying(true);
+      this.choosing = true;
+      this.decisionPanel.render();
     });
+    if (seen) {
+      this.choosing = true;
+      this.decisionPanel.render();
+    }
   }
 
   setPlaying(v) {
@@ -136,7 +145,10 @@ class App {
   }
 
   advance(n) {
-    for (let i = 0; i < n; i++) this.world.step();
+    for (let i = 0; i < n; i++) {
+      if (this.world.pendingDecisions().length || this.choosing) break;
+      this.world.step();
+    }
     this.phase = 1;
     this.renderAll();
   }
@@ -155,6 +167,12 @@ class App {
           this.world.step();
           acc -= 1;
           n++;
+          // 決断が来たら時間を止める
+          if (this.world.pendingDecisions().length) {
+            this.resumeAfterDecision = true;
+            this.setPlaying(false);
+            break;
+          }
         }
         if (acc >= 1) acc %= 1;
         this.phase = acc;
@@ -198,6 +216,42 @@ class App {
     this.showTab('dynasty');
   }
 
+  // 遊ぶ家を決める（null なら眺めるだけ）
+  startPlaying(dynId) {
+    this.choosing = false;
+    this.world.setPlayer(dynId);
+    this.follow(dynId);
+    this.renderAll();
+    if (!this.world.pendingDecisions().length) this.setPlaying(true);
+  }
+
+  decide(id, choice) {
+    const msg = this.world.decide(id, choice);
+    if (msg) this.toast(msg);
+    this.renderAll();
+    if (!this.world.pendingDecisions().length && this.resumeAfterDecision) {
+      this.resumeAfterDecision = false;
+      this.setPlaying(true);
+    }
+  }
+
+  // プレイヤーの行い（宣戦・没収・反乱）
+  act(kind, a, b) {
+    const w = this.world;
+    if (kind === 'war') w.playerDeclareWar(a, b);
+    if (kind === 'revoke') w.playerRevoke(a);
+    if (kind === 'rebel') w.playerRebel(a);
+    this.renderAll();
+  }
+
+  toast(text) {
+    const el = $('#toast');
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => (el.hidden = true), 3200);
+  }
+
   // 家を追う：当主が亡くなると次の当主に切り替わる。年代記もその家に絞る
   follow(dynId) {
     this.followDynasty = dynId;
@@ -232,7 +286,7 @@ class App {
     const h = w.head(d);
     const title = h ? w.titleOf(h) : '';
     el.hidden = false;
-    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>📌 ${d.name}家を追っています</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>`;
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>`;
     el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
   }
 
@@ -284,6 +338,7 @@ class App {
     this.map.yearAdvanced(this.playing ? 1000 / this.speed : 0);
     this.court.render();
     this.renderLog(fresh);
+    this.decisionPanel.render();
     this.renderFollowBar();
     this.renderPanel();
   }
@@ -370,7 +425,9 @@ class App {
       };
       this.setPlaying(false);
       this.newWorld();
-      this.showTab('realm');
+      this.choosing = true;
+      this.decisionPanel.render();
+      this.showTab('person');
     });
   }
 }

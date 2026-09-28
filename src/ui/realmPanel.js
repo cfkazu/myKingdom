@@ -11,6 +11,47 @@ export class RealmPanel {
   constructor(el, app) {
     this.el = el;
     this.app = app;
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-war],[data-revoke],[data-rebel]');
+      if (!b) return;
+      e.stopPropagation();
+      if (b.dataset.war) app.act('war', Number(b.dataset.war), b.dataset.claimant ? Number(b.dataset.claimant) : null);
+      else if (b.dataset.revoke) app.act('revoke', Number(b.dataset.revoke));
+      else if (b.dataset.rebel) app.act('rebel', b.dataset.rebel);
+    });
+  }
+
+  // プレイヤーの国なら宣戦、主君の国なら反乱のボタン
+  _actions(w, k) {
+    if (k === w.playerKingdom()) {
+      const targets = w.warTargets(k);
+      const atWar = w.activeWars(k.id).length;
+      return `<div class="actions"><h3>⚔️ あなたの国の行い</h3>
+        ${atWar ? `<p class="small">いま ${atWar} つの戦争を戦っています。</p>` : ''}
+        ${
+          targets.length
+            ? `<table class="list"><tbody>${targets
+                .map(
+                  (t) => `<tr><td>${kingdomLink(t.t)}${t.claimant ? `<div class="small">${personLink(w, t.claimant, { short: true })} の請求権</div>` : '<div class="small muted">国境の地方を奪う</div>'}</td>
+                  <td class="small">兵力の比 <b class="${t.ratio >= 1.2 ? 'good' : t.ratio < 0.8 ? 'bad' : ''}">${t.ratio.toFixed(1)}</b>${w.allied(k.id, t.t.id) ? '<br><span class="bad">同盟国（裏切ると諸侯が怒る）</span>' : ''}</td>
+                  <td><button type="button" data-war="${t.t.id}" ${t.claimant ? `data-claimant="${t.claimant.id}"` : ''}>${t.claimant ? '継承戦争' : '宣戦'}</button></td></tr>`,
+                )
+                .join('')}</tbody></table>`
+            : '<p class="small muted">いま攻められる相手はいません（同盟・休戦中・隣国がない）。</p>'
+        }
+        <p class="small muted">兵力の比は、こちらの兵 ÷ 相手の兵。同盟国は加勢し、大きすぎる国が攻めると包囲網ができます。諸侯の土地を取り上げるには、下の諸侯の表の「没収」を。</p></div>`;
+    }
+    if (k === w.playerLiege()) {
+      const d = w.playerDynasty();
+      const o = Math.round(d.opinion ?? 0);
+      const odds = w.rebelOdds(k);
+      const busy = w.activeWars(k.id).some((x) => x.kind === 'civil' || x.kind === 'independence');
+      return `<div class="actions"><h3>🗡️ あなたの立場（${esc(d.name)}家）</h3>
+        <p class="small">王への忠誠 <span class="opinion ${o >= 10 ? 'pos' : o <= -10 ? 'neg' : ''}">${o > 0 ? '+' : ''}${o}</span>。反乱を起こすと、あなたの兵 ${Math.round(odds.mine)}千${odds.allies ? `＋加わりそうな ${odds.allies} 家` : ''} 対 王の兵 ${Math.round(odds.king)}千（比 <b class="${odds.ratio >= 1 ? 'good' : 'bad'}">${odds.ratio.toFixed(2)}</b>）。</p>
+        ${busy ? '<p class="small muted">いまは内乱の最中です。</p>' : `<p class="choices"><button type="button" data-rebel="usurp">👑 王位を奪う反乱</button><button type="button" data-rebel="independence">🏳️ 独立の反乱</button></p>`}
+        <p class="small muted">負ければ当主は処刑か幽閉、家の所領は没収されます。王が幼い・狂っている・負け戦のあと、が狙い目です。</p></div>`;
+    }
+    return '';
   }
 
   render() {
@@ -54,6 +95,7 @@ export class RealmPanel {
           .join('') || '<tr><td class="muted">継承者がいない（王家断絶の危機）</td></tr>'}</tbody></table>`
           : ''
       }
+      ${k.alive ? this._actions(w, k) : ''}
       ${k.alive ? this._feudal(w, k) : ''}
       <h3>歴代の君主（${k.rulers.length}）</h3>
       <table class="list"><thead><tr><th>君主</th><th>王朝</th><th>治世</th><th>即位</th></tr></thead><tbody>
@@ -84,6 +126,7 @@ export class RealmPanel {
   _feudal(w, k) {
     const demesne = w.demesneOf(k);
     const vassals = w.vassals(k).sort((a, b) => w.countiesOf(b.id, k.id).length - w.countiesOf(a.id, k.id).length || (a.opinion ?? 0) - (b.opinion ?? 0));
+    const mine = k === w.playerKingdom();
     const inFaction = new Map();
     for (const f of k.factions ?? []) for (const id of f.members) inFaction.set(id, f.kind);
     const rank = { duke: '公爵', count: '伯爵', landless: '無領' };
@@ -100,7 +143,7 @@ export class RealmPanel {
           <td>${esc(w.houseTitle(d) ?? rank[w.houseRank(d)])}</td>
           <td class="num">${w.countiesOf(d.id, k.id).length}</td>
           <td class="num"><span class="opinion ${o >= 10 ? 'pos' : o <= -10 ? 'neg' : ''}" title="${esc(why)}">${o > 0 ? '+' : ''}${o}</span></td>
-          <td>${f ? `<span class="badge bad">${FACTION_LABEL[f]}</span>` : ''}</td></tr>`;
+          <td>${f ? `<span class="badge bad">${FACTION_LABEL[f]}</span>` : ''}${mine ? `<button type="button" class="small" data-revoke="${d.id}" title="いちばん大きな伯爵領を取り上げて王領にする。その家は強く恨み、ほかの諸侯も王を恐れる">没収</button>` : ''}</td></tr>`;
       })
       .join('');
     const factions = (k.factions ?? [])
