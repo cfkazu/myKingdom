@@ -1350,3 +1350,17 @@ select:focus-visible {
     display: none;
   }
 }
+
+.why {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.follow-bar .hint {
+  flex-basis: 100%;
+  color: var(--bad);
+}
+
+.queue .badge {
+  margin: 0 2px;
+}

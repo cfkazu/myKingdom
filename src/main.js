@@ -241,6 +241,10 @@ class App {
     if (kind === 'war') w.playerDeclareWar(a, b);
     if (kind === 'revoke') w.playerRevoke(a);
     if (kind === 'rebel') w.playerRebel(a);
+    if (kind === 'grant') {
+      const k = w.playerKingdom();
+      if (k) w._playerGrantDecision(k, w.provinces[a], true);
+    }
     this.renderAll();
   }
 
@@ -291,7 +295,11 @@ class App {
       el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
       return;
     }
-    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>`;
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${
+      w.player && w.player.dynastyId === d.id && !w.player.over && w.houseStanding(d).rank === 0
+        ? '<div class="small hint">⚠️ あなたの家は所領を失いました。王家や大きな家との縁談で請求権や同盟を得るか、家タブから別の家に乗り換えましょう。</div>'
+        : ''
+    }`;
     el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
   }
 
@@ -309,7 +317,8 @@ class App {
       const h = fd.extinct ? null : w.head(fd);
       if (!h) {
         // 絶えた家は、帯に「絶えました」と出す
-      } else if (!sel || !sel.alive || (sel.dynastyId === fd.id && sel !== h && sel.id === this._followedHead)) {
+      } else if (!sel || !sel.alive || h.id !== this._followedHead) {
+        // 当主が代わったら、いつも新しい当主を映す
         this.selectedPerson = h.id;
         this.map.selectedPerson = h.id;
       }

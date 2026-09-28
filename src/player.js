@@ -198,6 +198,7 @@ export const PlayerMixin = {
       const k = this.kingdoms[d.kingdomId];
       const pr = this.provinces[d.provinceId];
       if (!k.alive || pr.ownerId !== k.id || !this.isDemesne(pr)) return null;
+      if (choice === 'keep' && d.byHand) return null;
       if (choice === 'keep') {
         k.keepUntil = this.year + 5;
         for (const v of this.vassals(k)) this._remember(v, -4, '王が土地を手放さない', k);
@@ -215,16 +216,20 @@ export const PlayerMixin = {
         this.player.joined = { kingdomId: d.kingdomId, kind: d.kind };
         return `${d.label}に加わった。派閥が十分に強くなれば、反乱が始まる。`;
       }
+      if (choice === 'wait') {
+        this.player.asked.set(`f${d.kingdomId}`, this.year - 5);
+        return '返事を保留した。3 年ほどしたら、また誘いが来る。';
+      }
       this.player.joined = null;
       this.player.asked.set(`f${d.kingdomId}`, this.year);
-      return '誘いを断った。';
+      return '誘いを断った。王への忠誠は変わらない。';
     }
     return null;
   },
 
   // ───────── 王としての行い ─────────
 
-  _playerGrantDecision(k, pr) {
+  _playerGrantDecision(k, pr, byHand = false) {
     if (this.player.decisions.some((d) => d.type === 'grant' && d.kingdomId === k.id)) return;
     const r = this.ruler(k);
     const cands = this.dynasties
@@ -232,7 +237,7 @@ export const PlayerMixin = {
       .map((d) => ({ d, n: this.countiesOf(d.id).length, same: this.countiesOf(d.id).some((c) => c.duchyId === pr.duchyId) }))
       .sort((a, b) => (b.d.opinion ?? 0) - (a.d.opinion ?? 0))
       .slice(0, 6);
-    this._decision({ type: 'grant', kingdomId: k.id, provinceId: pr.id, candidateDynIds: cands.map((o) => o.d.id) });
+    this._decision({ type: 'grant', kingdomId: k.id, provinceId: pr.id, candidateDynIds: cands.map((o) => o.d.id), byHand });
   },
 
   // 宣戦できる相手（隣国と、請求権のある国）

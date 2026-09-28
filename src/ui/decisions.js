@@ -37,7 +37,13 @@ export class DecisionPanel {
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
     const body = { marriage: () => this._marriage(w, d), education: () => this._education(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d) }[d.type]();
-    this.el.innerHTML = `${body}${more > 0 ? `<p class="small muted">ほかに ${more} 件の決断が待っています。</p>` : ''}`;
+    const label = { marriage: '💍 縁談', education: '📚 教育', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const queue = w
+      .pendingDecisions()
+      .slice(1)
+      .map((x) => `<span class="badge">${label[x.type]}${x.personId != null ? `：${esc(w.get(x.personId).name)}` : ''}</span>`)
+      .join('');
+    this.el.innerHTML = `${body}${more > 0 ? `<p class="small muted queue">このあと待っている決断（${more}）：${queue}</p>` : ''}`;
   }
 
   // ───────── はじめに家を選ぶ ─────────
@@ -145,10 +151,10 @@ export class DecisionPanel {
       })
       .join('');
     return `<div class="decision">
-      <div class="eyebrow">🏰 恩賞</div><h2>${kingdomLink(k)}の王領が多すぎます。${esc(pr.name)}伯領を誰に与えますか？</h2>
+      <div class="eyebrow">🏰 恩賞</div><h2>${d.byHand ? `${esc(pr.name)}伯領を誰に与えますか？` : `${kingdomLink(k)}の王領が多すぎます。${esc(pr.name)}伯領を誰に与えますか？`}</h2>
       <p class="small muted">王が直轄できるのは ${w.demesneLimit(k)} つまで（統治の力しだい）。土地を与えた家の忠誠は上がりますが、大きくなりすぎた家は危険です。</p>
       <div class="cands">${rows}</div>
-      <p class="choices"><button type="button" data-id="${d.id}" data-choice="knight">騎士を取り立てて新しい伯爵家にする</button><button type="button" data-id="${d.id}" data-choice="keep">手放さない（諸侯は少し不満）</button></p>
+      <p class="choices"><button type="button" data-id="${d.id}" data-choice="knight">騎士を取り立てて新しい伯爵家にする</button><button type="button" data-id="${d.id}" data-choice="keep">${d.byHand ? 'やめる' : '手放さない（諸侯は少し不満）'}</button></p>
     </div>`;
   }
 
@@ -163,7 +169,8 @@ export class DecisionPanel {
       <div class="eyebrow">🗡️ 派閥の誘い</div><h2>${kingdomLink(k)}の不満な諸侯から、${esc(d.label)}に誘われました</h2>
       <p>盟主は ${personLink(w, leader)}。加わっている家：${members.map((m) => esc(m.name)).join('・')}家。</p>
       <p class="small muted">加わると、派閥が十分に強くなったときに反乱が始まり、あなたの家も戦います。勝てば見返りがありますが、負ければ盟主の家は所領を失い、同志も罰を受けます。いまの反乱軍と王の兵力の比：およそ ${Math.round(odds.ratio * 100)}%</p>
-      <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="join">加わる</button><button type="button" data-id="${d.id}" data-choice="decline">断る</button></p>
+      <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="join">加わる</button><button type="button" data-id="${d.id}" data-choice="wait">保留する（3 年後にまた）</button><button type="button" data-id="${d.id}" data-choice="decline">断る</button></p>
+      <p class="small muted">断っても罰はありません（8 年ほどは誘われなくなります）。加わったあとも、派閥が立ち上がるまでは何も起きません。</p>
     </div>`;
   }
 

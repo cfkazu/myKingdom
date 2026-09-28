@@ -1046,6 +1046,9 @@ export class World {
         for (const list of [men, women]) for (let i = list.length - 1; i >= 0; i--) if (drop.has(list[i].id)) list.splice(i, 1);
         this._playerMarriages(mine);
       }
+      // プレイヤーに示している候補は、返事があるまでほかの家と結婚させない
+      const held = new Set(this.player.decisions.filter((d) => d.type === 'marriage').flatMap((d) => d.candidateIds));
+      if (held.size) for (const list of [men, women]) for (let i = list.length - 1; i >= 0; i--) if (held.has(list[i].id)) list.splice(i, 1);
     }
     const pairs = [];
     for (const m of men) {
