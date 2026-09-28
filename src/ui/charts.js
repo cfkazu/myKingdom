@@ -194,7 +194,18 @@ export class Chart {
         ctx.lineJoin = 'round';
         if (series[s].dash) ctx.setLineDash([5, 4]);
         ctx.beginPath();
-        for (let i = 0; i < n; i++) ctx.lineTo(X(i), Y(this.data[s][i]));
+        // 値のない年（null）は線を切る
+        let pen = false;
+        for (let i = 0; i < n; i++) {
+          const v = this.data[s][i];
+          if (v == null) {
+            pen = false;
+            continue;
+          }
+          if (pen) ctx.lineTo(X(i), Y(v));
+          else ctx.moveTo(X(i), Y(v));
+          pen = true;
+        }
         ctx.stroke();
         ctx.restore();
       }
@@ -213,9 +224,14 @@ export class Chart {
       const rows = [];
       let acc = 0;
       for (let s = 0; s < series.length; s++) {
-        const v = this.data[s][hi] || 0;
+        const raw = this.data[s][hi];
+        const v = raw || 0;
         acc += v;
         const yv = kind === 'stack' ? acc : v;
+        if (raw == null && kind !== 'stack') {
+          rows.push(`<div class="row"><span><span class="swatch" style="background:${resolveColor(series[s].color)}"></span>${series[s].label}</span><span class="val">—</span></div>`);
+          continue;
+        }
         ctx.beginPath();
         ctx.arc(x, Y(yv), 4, 0, Math.PI * 2);
         ctx.fillStyle = resolveColor(series[s].color);

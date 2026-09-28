@@ -1781,6 +1781,31 @@ export class World {
     this.ped.prune(this.year - 160);
   }
 
+  // 家ごとの平均（統計タブで、選んだ家と貴族全体を比べるため）
+  _houseStats(ppl) {
+    const by = new Map();
+    for (const p of ppl) {
+      if (p.dynastyId == null) continue;
+      if (!by.has(p.dynastyId)) by.set(p.dynastyId, []);
+      by.get(p.dynastyId).push(p);
+    }
+    const out = {};
+    const r1 = (v) => Math.round(v * 10) / 10;
+    for (const [id, list] of by) {
+      const m = (f) => list.reduce((s, p) => s + f(p), 0) / list.length;
+      out[id] = {
+        n: list.length,
+        beauty: r1(m((p) => p.pheno.beauty)),
+        intellect: r1(m((p) => p.pheno.intellect)),
+        strength: r1(m((p) => p.pheno.strength)),
+        charisma: r1(m((p) => p.pheno.charisma)),
+        F: Math.round(m((p) => p.F) * 1000) / 1000,
+        sick: list.filter((p) => p.pheno.hemophilia || p.pheno.jaw || p.mad || p.pheno.load > 0).length,
+      };
+    }
+    return out;
+  }
+
   alleleFreq(key, allele, people) {
     let n = 0;
     let c = 0;
@@ -1814,6 +1839,7 @@ export class World {
         mad: this.alleleFreq('MAD', 'm', ppl),
         del: ['DEL1', 'DEL2', 'DEL3', 'DEL4'].reduce((s, k) => s + this.alleleFreq(k, 'd', ppl), 0) / 4,
       },
+      houses: this._houseStats(ppl),
       traits: {
         beauty: mean(ppl, (p) => p.pheno.beauty),
         intellect: mean(ppl, (p) => p.pheno.intellect),
