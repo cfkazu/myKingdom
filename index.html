@@ -49,9 +49,9 @@
             <option value="pop">人口</option>
             <option value="devastation">戦禍</option>
           </select>
-          <div id="map-legend" class="map-legend"></div>
         </div>
         <div class="map-wrap">
+          <div id="map-legend" class="map-legend"></div>
           <canvas id="map" aria-label="大陸の地図。地方をクリックすると王国の詳細が見られます"></canvas>
           <div id="map-tip" class="map-tip" hidden></div>
         </div>
@@ -59,29 +59,25 @@
         <section id="court" class="court" aria-label="宮廷"></section>
         <div class="events" role="group" aria-label="介入">
           <span class="events-label">神の介入</span>
-          <button type="button" data-event="plague">🦠 疫病</button>
-          <button type="button" data-event="war">⚔️ 戦乱の時代</button>
-          <button type="button" data-event="peace">🕊️ 平和の時代</button>
-          <button type="button" data-event="hemophilia">🩸 血友病の姫を送り込む</button>
-        </div>
-        <div class="log-wrap">
-          <div class="log-head">
-            <h2>年代記</h2>
-            <select id="log-filter" aria-label="年代記の絞り込み">
-              <option value="all">すべて</option>
-              <option value="major">主な出来事</option>
-              <option value="war">戦争</option>
-              <option value="succession">継承と王朝</option>
-              <option value="marriage">結婚と誕生</option>
-              <option value="gene">遺伝</option>
-              <option value="kingdom">選んだ王国</option>
-            </select>
-          </div>
-          <ol id="log" class="log"></ol>
+          <button type="button" data-event="plague" title="2〜4 年、疫病がはやる。免疫型の違う遺伝子を 2 つ持つ人ほど生き延びる">🦠 疫病</button>
+          <button type="button" data-event="war" title="これから 20 年、王たちが戦争を起こしやすくなる">⚔️ 戦乱の時代</button>
+          <button type="button" data-event="peace" title="これから 20 年、王たちが戦争をほとんど起こさなくなる">🕊️ 平和の時代</button>
+          <button type="button" data-event="hemophilia" title="いちばん強い国の宮廷に、血友病の遺伝子を隠し持つ美しい娘が現れる。王家に血友病が広がるか見てみよう">🩸 血友病の姫を送り込む</button>
+          <span class="events-hint small muted">歴史にちょっかいを出せます（ボタンにマウスを乗せると説明）</span>
         </div>
       </section>
 
       <section class="side-col">
+        <div id="intro" class="intro" hidden>
+          <h2>ようこそ、王家の年代記へ</h2>
+          <ol>
+            <li><b>▶ 再生</b>（またはスペースキー）で時間が進みます。王侯貴族が結婚し、子を残し、王位を継ぎ、戦い、反乱します。</li>
+            <li>地図の<b>点は一人ひとりの貴族</b>です。点・年代記の名前・地図の下の<b>宮廷の肖像</b>をクリックすると、その人の姿・遺伝子・家族が見られます。</li>
+            <li>地図の<b>👑 王国／🛡️ 公爵領／🏰 伯爵領</b>で見る階層を、「ほかの地図」で遺伝病や諸侯の忠誠を切り替えられます。</li>
+            <li>しくみは<b>図鑑</b>タブに。気に入った王家を追いかけて、血筋の行く末を眺めてください。</li>
+          </ol>
+          <button type="button" id="intro-close" class="primary">はじめる</button>
+        </div>
         <nav class="tabs" role="tablist">
           <button type="button" role="tab" data-tab="person" aria-selected="true">人物</button>
           <button type="button" role="tab" data-tab="family">家系図</button>
@@ -98,6 +94,23 @@
         <div class="tab-panel" id="tab-stats" role="tabpanel" hidden></div>
         <div class="tab-panel" id="tab-guide" role="tabpanel" hidden></div>
         <div class="tab-panel" id="tab-settings" role="tabpanel" hidden></div>
+      </section>
+      <section class="log-col">
+          <div class="log-wrap">
+          <div class="log-head">
+            <h2>年代記</h2>
+            <select id="log-filter" aria-label="年代記の絞り込み">
+              <option value="major">主な出来事</option>
+              <option value="all">すべて</option>
+              <option value="war">戦争</option>
+              <option value="succession">継承と王朝</option>
+              <option value="marriage">結婚と誕生</option>
+              <option value="gene">遺伝</option>
+              <option value="kingdom">選んだ王国</option>
+            </select>
+          </div>
+          <ol id="log" class="log"></ol>
+        </div>
       </section>
     </main>
 

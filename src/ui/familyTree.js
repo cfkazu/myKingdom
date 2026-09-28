@@ -40,7 +40,7 @@ export class FamilyTree {
       const dup = dupColor.get(x.id);
       const title = x.rulerOfEver != null ? `👑 ${w.kingdoms[x.rulerOfEver].name}` : d ? `${d.name}家` : '平民の出';
       return `<div class="tnode${self ? ' self' : ''}${dup ? ' dup' : ''}" data-pid="${x.id}" style="--dyn:${d ? d.color : 'var(--border)'};${dup ? `--dupc:${dup}` : ''}" title="${esc(w.displayName(x))}">
-        <div class="n">${esc(x.regnal ?? x.name)}${x.alive ? '' : '†'}</div>
+        <div class="n">${esc(x.regnal ?? x.name)}${x.alive ? '' : '<span class="dead-mark" title="故人">故</span>'}</div>
         <div class="s">${esc(title)}・${x.birthYear}${x.alive ? '' : `〜${x.deathYear}`}</div>
       </div>`;
     };

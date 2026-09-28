@@ -5,7 +5,7 @@ export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '
 export function personLink(world, p, { short = false } = {}) {
   if (!p) return '<span class="muted">不明</span>';
   const name = short ? p.regnal ?? p.name : world.displayName(p);
-  const life = p.alive ? '' : '†';
+  const life = p.alive ? '' : '<span class="dead-mark" title="故人">故</span>';
   return `<a class="plink${p.alive ? '' : ' dead'}" data-pid="${p.id}">${esc(name)}${life}</a>`;
 }
 

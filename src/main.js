@@ -13,6 +13,8 @@ import { richText, bindLinks, esc } from './ui/util.js';
 
 const $ = (sel) => document.querySelector(sel);
 
+const LOG_ICON = { war: '⚔️', succession: '👑', dynasty: '🏰', marriage: '💍', birth: '👶', death: '✝️', gene: '🧬', event: '🌍' };
+
 const randomSeed = () => Math.random().toString(36).slice(2, 8);
 
 class App {
@@ -21,7 +23,8 @@ class App {
     this.playing = false;
     this.speed = 3;
     this.tab = 'person';
-    this.logFilter = 'all';
+    this.logFilter = 'major';
+    this.followKingdom = null;
     this.map = new MapView($('#map'), $('#map-tip'), null, {
       onSelectKingdom: (id) => this.selectKingdom(id, true),
       onSelectPerson: (id) => this.selectPerson(id),
@@ -38,6 +41,7 @@ class App {
     this._bind();
     this.newWorld();
     this._loop();
+    this._intro();
   }
 
   newWorld() {
@@ -51,6 +55,7 @@ class App {
     const big = this.world.aliveKingdoms().reduce((a, b) => (this.world.provincesOf(a).length >= this.world.provincesOf(b).length ? a : b));
     this.selectedPerson = big.rulerId;
     this.map.selectedPerson = big.rulerId;
+    this.followKingdom = big.id;
     this.renderSettings();
     this.renderAll(true);
   }
@@ -102,6 +107,26 @@ class App {
     });
   }
 
+  // はじめての人への案内（一度閉じたら出さない）
+  _intro() {
+    let seen = false;
+    try {
+      seen = localStorage.getItem('mykingdom-intro') === '1';
+    } catch {
+      seen = false;
+    }
+    $('#intro').hidden = seen;
+    $('#intro-close').addEventListener('click', () => {
+      $('#intro').hidden = true;
+      try {
+        localStorage.setItem('mykingdom-intro', '1');
+      } catch {
+        // 保存できなくても困らない
+      }
+      this.setPlaying(true);
+    });
+  }
+
   setPlaying(v) {
     this.playing = v;
     $('#btn-play').textContent = v ? '⏸ 一時停止' : '▶ 再生';
@@ -149,6 +174,8 @@ class App {
     this.selectedPerson = id;
     this.map.selectedPerson = id;
     const p = this.world.get(id);
+    // 君主を選んだら、その国の王位を追いかける（亡くなったら次の君主に切り替わる）
+    this.followKingdom = p && p.alive && p.rulerOf != null ? p.rulerOf : null;
     if (p && p.kingdomId != null) this.map.selectedKingdom = null;
     if (this.tab !== 'person' && this.tab !== 'family') this.showTab('person');
     else this.renderPanel();
@@ -175,6 +202,15 @@ class App {
 
   renderAll(fresh = false) {
     const w = this.world;
+    const sel = this.selectedPerson != null ? w.get(this.selectedPerson) : null;
+    if (sel && !sel.alive && this.followKingdom != null) {
+      const k = w.kingdoms[this.followKingdom];
+      const next = k && k.alive ? w.ruler(k) : null;
+      if (next) {
+        this.selectedPerson = next.id;
+        this.map.selectedPerson = next.id;
+      } else this.followKingdom = null;
+    }
     $('#clock-year').textContent = `${w.year}年`;
     const status = [];
     if (w.plague) status.push('🦠 疫病');
@@ -182,13 +218,15 @@ class App {
     $('#clock-status').textContent = status.join('　');
     const wars = w.wars.filter((x) => !x.ended).length;
     const h = w.history.at(-1);
-    $('#quick-stats').innerHTML = `
-      <span>王国 <b>${w.aliveKingdoms().length}</b></span>
-      <span>王侯貴族 <b>${h.nobles}</b> 人</span>
-      <span>家 <b>${w.dynasties.filter((d) => !d.extinct).length}</b></span>
-      <span>戦争 <b>${wars}</b></span>
-      <span>君主の近交係数 <b>${h.rulerF.toFixed(3)}</b></span>
-      <span>いま生きている患者：血友病 <b>${h.cases.hem}</b>・受け口 <b>${h.cases.jaw}</b>・狂気 <b>${h.cases.mad}</b></span>`;
+    const stat = (label, value, hint, cls = '') => `<span class="qs${cls ? ` ${cls}` : ''}" title="${hint}"><span class="qs-l">${label}</span><b>${value}</b></span>`;
+    $('#quick-stats').innerHTML = [
+      stat('王国', w.aliveKingdoms().length, 'いま大陸にある王国の数'),
+      stat('戦争中', wars, 'いま続いている戦争・反乱の数', wars ? 'hot' : ''),
+      stat('王侯貴族', `${h.nobles}人`, '名前のある王侯貴族の人数（平民は人口として数えている）'),
+      stat('家', w.dynasties.filter((d) => !d.extinct).length, '絶えていない貴族の家の数'),
+      stat('君主の血の濃さ', h.rulerF.toFixed(3), '君主の近交係数の平均。いとこ婚の子は 0.0625、叔父と姪の子は 0.125。高いほど劣性の遺伝病が出やすい'),
+      stat('遺伝病の患者', `血友病 ${h.cases.hem}・受け口 ${h.cases.jaw}・狂気 ${h.cases.mad}`, 'いま生きている王侯貴族のうち、発症している人の数。地図の「ほかの地図 → 遺伝病」で場所が見られる'),
+    ].join('');
     this.renderMap();
     this.map.yearAdvanced(this.playing ? 1000 / this.speed : 0);
     this.court.render();
@@ -227,7 +265,7 @@ class App {
       if (!this._logMatch(e)) continue;
       const li = document.createElement('li');
       li.className = e.kind;
-      li.innerHTML = `<span class="y">${e.year}</span>${richText(w, e.text)}`;
+      li.innerHTML = `<span class="y">${e.year}</span><span class="ic" aria-hidden="true">${LOG_ICON[e.kind] ?? '・'}</span><span class="tx">${richText(w, e.text)}</span>`;
       frag.prepend(li);
     }
     this._logShown = w.log.length;

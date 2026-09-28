@@ -6,7 +6,7 @@ import { kinshipLabel } from '../pedigree.js';
 import { portraitSVG } from './portrait.js';
 import { esc, personLink, kingdomLink, lifeSpan } from './util.js';
 
-const bar = (label, v, cls = '') => `<span>${label}</span><div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div><span class="v">${Math.round(v)}</span>`;
+const bar = (label, v, cls = '', hint = '') => `<span title="${hint}">${label}</span><div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div><span class="v">${Math.round(v)}</span>`;
 
 export class PersonPanel {
   constructor(el, app) {
@@ -57,7 +57,12 @@ export class PersonPanel {
 
     const pinned = this.app.pinned != null ? w.get(this.app.pinned) : null;
     const open = this.el.querySelector('details')?.open ?? false;
-    this.el.innerHTML = `
+    let banner = '';
+    if (!p.alive) {
+      const succ = p.rulerOfEver != null ? w.ruler(w.kingdoms[p.rulerOfEver]) : null;
+      banner = `<div class="dead-banner">この人は ${p.deathYear} 年に亡くなりました（${esc(p.cause)}）。${succ ? `いまの${esc(w.kingdoms[p.rulerOfEver].name)}の君主は ${personLink(w, succ)}。` : ''}</div>`;
+    }
+    this.el.innerHTML = `${banner}
       <div class="person-head">
         ${portraitSVG(w, p)}
         <div>
@@ -70,15 +75,15 @@ export class PersonPanel {
         </div>
       </div>
       <div class="bars">
-        ${bar('魅力', w.charm(p), 'skill')}
-        ${bar('武勇（将）', w.martial(p), 'skill')}
-        ${bar('統治', w.stewardship(p), 'skill')}
-        ${bar('容姿', ph.beauty)}
-        ${bar('知略', ph.intellect)}
-        ${bar('武勇（体）', ph.strength)}
-        ${bar('カリスマ', ph.charisma)}
-        ${bar('野心', ph.ambition)}
-        ${bar('慈愛', ph.kindness)}
+        ${bar('魅力', w.charm(p), 'skill', '容姿・カリスマ・健康・若さ。高いほど良い縁談がまとまりやすい')}
+        ${bar('指揮', w.martial(p), 'skill', '体の強さ・知略・カリスマ・身長から。高いほど戦に勝ちやすく、戦死しにくい')}
+        ${bar('統治', w.stewardship(p), 'skill', '知略・カリスマ・慈愛から。王なら兵が集まり、直轄できる土地が増え、諸侯の忠誠も上がる')}
+        ${bar('容姿', ph.beauty, '', '遺伝子（4 座）と育ち。魅力のもと。受け口の顎や虚弱で下がる')}
+        ${bar('知略', ph.intellect, '', '遺伝子（4 座）と育ち。統治と指揮のもと')}
+        ${bar('体の強さ', ph.strength, '', '遺伝子（3 座）と育ち。指揮のもと')}
+        ${bar('カリスマ', ph.charisma, '', '遺伝子（3 座）と育ち。魅力・統治・諸侯の忠誠に効く')}
+        ${bar('野心', ph.ambition, '', '高い王は戦争を起こし、高い諸侯は反乱を起こし、高い継承者は王を暗殺することも')}
+        ${bar('慈愛', ph.kindness, '', '高い王は戦争を好まず、低い王は諸侯から土地を取り上げることがある')}
       </div>
       <h3>家族</h3>
       <dl class="kv">
@@ -93,12 +98,12 @@ export class PersonPanel {
         <dt>寿命の素質</dt><dd>${ph.longevity >= 0 ? '+' : ''}${ph.longevity.toFixed(0)} 年</dd>
       </dl>
       <p><button type="button" data-act="tree">🌳 家系図を見る</button>
-      ${pinned && pinned.id === p.id ? '<button type="button" data-act="unpin">📌 固定を外す</button>' : `<button type="button" data-act="pin" data-id="${p.id}" title="この人を固定してから別の人を選ぶと、ふたりの縁談の相性と子の予測が見られます">📌 縁談の相手として固定</button>`}</p>
+      ${pinned && pinned.id === p.id ? '<button type="button" data-act="unpin">💍 縁談占いをやめる</button>' : `<button type="button" data-act="pin" data-id="${p.id}" title="この人を固定してから別の人を選ぶと、ふたりの縁談の相性と子の予測が見られます">💍 この人の縁談を占う</button>`}</p>
       ${this._match(w, pinned, p)}
       ${
         p.genome
           ? `<details>
-        <summary>遺伝子型（${LOCI.length} 座）</summary>
+        <summary>🧬 遺伝子をくわしく見る（${LOCI.length} 個の遺伝子）</summary>
         ${this._genotype(p)}
       </details>`
           : '<p class="small muted">遠い昔の人なので、遺伝子型の記録は残っていません（姿と能力の記録だけが残る）。</p>'
@@ -124,7 +129,7 @@ export class PersonPanel {
 
   _match(w, a, b) {
     if (!a || a.id === b.id || !a.genome || !b.genome) return '';
-    if (a.sex === b.sex) return `<div class="pinbox">📌 ${personLink(w, a)} を固定中。異性を選ぶと縁談の相性が見られます。</div>`;
+    if (a.sex === b.sex) return `<div class="pinbox">💍 ${personLink(w, a)} の縁談を占っています。異性を選ぶと、ふたりの相性と生まれる子の予測が出ます。</div>`;
     const [mom, dad] = a.sex === 'F' ? [a, b] : [b, a];
     const phi = w.ped.kinship(a.id, b.id);
     const pred = predictOffspring(mom.genome, dad.genome, createRng(`${mom.id}x${dad.id}`), 1500);
