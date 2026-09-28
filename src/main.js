@@ -140,6 +140,13 @@ class App {
   }
 
   setPlaying(v) {
+    // 決断が待っているあいだは進めない。決め終わったら自動で再生を再開する
+    if (v && this.world && (this.world.pendingDecisions().length || this.choosing)) {
+      this.resumeAfterDecision = true;
+      if (!this.choosing) this.toast('先に決断を選んでください。選び終わると再生が始まります。');
+      v = false;
+    }
+    if (!v && !this.world?.pendingDecisions().length) this.resumeAfterDecision = false;
     this.playing = v;
     $('#btn-play').textContent = v ? '⏸ 一時停止' : '▶ 再生';
   }
@@ -160,6 +167,10 @@ class App {
     const frame = (t) => {
       const dt = Math.min(0.5, (t - last) / 1000);
       last = t;
+      if (this.playing && this.world.pendingDecisions().length) {
+        this.resumeAfterDecision = true;
+        this.setPlaying(false);
+      }
       if (this.playing) {
         acc += dt * this.speed;
         let n = 0;
@@ -222,7 +233,7 @@ class App {
     this.world.setPlayer(dynId);
     this.follow(dynId);
     this.renderAll();
-    if (!this.world.pendingDecisions().length) this.setPlaying(true);
+    this.setPlaying(true);
   }
 
   decide(id, choice) {
