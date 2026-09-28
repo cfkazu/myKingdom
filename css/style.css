@@ -1336,3 +1336,17 @@ select:focus-visible {
     grid-column: 1 / -1;
   }
 }
+
+@media (max-width: 600px) {
+  .map-wrap .map-legend {
+    position: static;
+    max-width: none;
+    border-radius: 0;
+    border-width: 1px 0 0;
+    font-size: 11px;
+  }
+
+  .icon-legend {
+    display: none;
+  }
+}

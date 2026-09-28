@@ -92,7 +92,7 @@ export const PlayerMixin = {
       if (c.sex === 'F' ? ca < 15 || ca > 40 : ca < 16 || ca > 62) continue;
       if (this.isPlayerHouse(c) && this.playerControls(c)) continue;
       if (this.atWar(p.kingdomId, c.kingdomId)) continue;
-      if (p.kingdomId !== c.kingdomId && !(this.royalOf(p) || this.royalOf(c) || p.rulerOf != null || c.rulerOf != null || this.countiesOf(p.dynastyId).length >= 2)) continue;
+      // プレイヤーは国の外にも縁談を探せる（同じ国の相手は少し選ばれやすい）
       if (p.fatherId != null && (p.fatherId === c.fatherId || p.motherId === c.motherId)) continue;
       const phi = this.ped.kinship(p.id, c.id);
       const mine = this.spouseScore(p, c, phi);
@@ -110,6 +110,18 @@ export const PlayerMixin = {
       perHouse.set(o.c.dynastyId, n + 1);
       picked.push(o);
       if (picked.length >= limit) break;
+    }
+    // 候補が少ないときは、騎士（郷士）の家の子を紹介してもらう
+    const k = this.kingdomOf(p);
+    const home = this.homeProvince(p) ?? k?.capital ?? 0;
+    const a = this.age(p);
+    for (let i = picked.length; i < Math.min(limit, 4); i++) {
+      const sex = p.sex === 'M' ? 'F' : 'M';
+      const cAge = sex === 'F' ? clamp(Math.min(a, 30) - this.rng.int(6), 16, 30) : clamp(a + this.rng.int(8) - 2, 18, 45);
+      const c = this._founder(sex, cAge, this._regionFor(home), { kingdomId: p.kingdomId, culture: k ? k.culture : p.culture, lowborn: true });
+      c.gentry = true;
+      const phi = 0;
+      picked.push({ c, mine: this.spouseScore(p, c, phi), theirs: 50, phi });
     }
     return picked;
   },

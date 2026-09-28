@@ -283,9 +283,14 @@ class App {
       el.hidden = true;
       return;
     }
-    const h = w.head(d);
+    const h = d.extinct ? null : w.head(d);
     const title = h ? w.titleOf(h) : '';
     el.hidden = false;
+    if (!h) {
+      el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>✝️ ${d.name}家は ${d.extinctYear ?? w.year} 年に絶えました</b><button type="button" id="unfollow" class="small">閉じる</button>`;
+      el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
+      return;
+    }
     el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>`;
     el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
   }
@@ -303,7 +308,7 @@ class App {
     if (fd) {
       const h = fd.extinct ? null : w.head(fd);
       if (!h) {
-        this.followDynasty = null;
+        // 絶えた家は、帯に「絶えました」と出す
       } else if (!sel || !sel.alive || (sel.dynastyId === fd.id && sel !== h && sel.id === this._followedHead)) {
         this.selectedPerson = h.id;
         this.map.selectedPerson = h.id;

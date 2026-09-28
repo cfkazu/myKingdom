@@ -37,7 +37,7 @@ export class DynastyPanel {
     this.el.innerHTML = `
       ${sel ? this._detail(w, sel) : '<p class="small muted">家をクリックすると、その家の人々と遺伝の傾向が出ます。</p>'}
       <h3>家の一覧（家格の順）</h3>
-      <table class="list"><thead><tr><th>家</th><th class="num">家格</th><th class="num">存命</th><th class="num">君主</th><th>年代</th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="list"><thead><tr><th>家</th><th class="num" title="家の名声。王位にある・戦に勝つ・王家と縁組すると上がり、年とともに少しずつ下がる。縁談の値打ちや反乱の強さに効く">家格</th><th class="num">存命</th><th class="num">君主</th><th>年代</th></tr></thead><tbody>${rows}</tbody></table>
     `;
   }
 

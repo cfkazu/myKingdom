@@ -85,13 +85,14 @@ export class DecisionPanel {
       const perks = [];
       if (c.rulerOf != null) perks.push(`${w.kingdoms[c.rulerOf].name}の君主`);
       else if (royal) perks.push(`${royal.name}の王族（同盟）`);
+      if (c.gentry) perks.push('騎士の家の出（家格は低いが、新しい血を入れられる）');
       if (w.isHeirAnywhere(c)) perks.push('王位継承者');
       if (cd && w.houseTitle(cd)) perks.push(w.houseTitle(cd));
       return `<div class="cand">
         ${portraitSVG(w, c, 64)}
         <div class="cand-body">
           <div><b>${personLink(w, c)}</b> <span class="small muted">${w.age(c)}歳${ck ? `・${esc(ck.name)}` : ''}</span></div>
-          <div class="small">${perks.length ? `<span class="good">${esc(perks.join('・'))}</span>・` : ''}魅力 ${Math.round(w.charm(c))}・知略 ${Math.round(c.pheno.intellect)}・${HAIR_LABEL[c.pheno.hair]}・${EYE_LABEL[c.pheno.eye]}</div>
+          <div class="small">${ck && ck.id !== p.kingdomId ? `<span class="muted">外国（${esc(ck.name)}）・</span>` : ''}${perks.length ? `<span class="good">${esc(perks.join('・'))}</span>・` : ''}魅力 ${Math.round(w.charm(c))}・知略 ${Math.round(c.pheno.intellect)}・${HAIR_LABEL[c.pheno.hair]}・${EYE_LABEL[c.pheno.eye]}</div>
           <div class="small">${phi > 0.001 ? `<span class="${phi >= 0.05 ? 'bad' : ''}">血縁：${kinshipLabel(phi)}（子の近交係数 ${phi.toFixed(3)}）</span>` : '血縁なし'}${risks.length ? `・<span class="bad">子の心配：${risks.join('、')}</span>` : '・子の遺伝病の心配はほぼない'}</div>
         </div>
         <button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">この人と</button>
@@ -111,7 +112,12 @@ export class DecisionPanel {
   _education(w, d) {
     const p = w.get(d.personId);
     const opts = Object.entries(EDUCATION)
-      .map(([key, e]) => `<button type="button" class="opt" data-id="${d.id}" data-choice="${key}"><b>${e.label}</b><span class="small">${e.desc}</span></button>`)
+      .map(([key, e]) => {
+        const gain = Object.entries(e.env)
+          .map(([k, v]) => `${{ strength: '体の強さ', intellect: '知略', charisma: 'カリスマ', beauty: '容姿', kindness: '慈愛', ambition: '野心' }[k]} ${v > 0 ? '+' : '−'}${Math.round(Math.abs(v) * (k === 'kindness' || k === 'ambition' ? 12 : k === 'intellect' ? 9 : 8))}`)
+          .join('・');
+        return `<button type="button" class="opt" data-id="${d.id}" data-choice="${key}"><b>${e.label}</b><span class="small">${e.desc}</span><span class="small good">${gain} くらい</span></button>`;
+      })
       .join('');
     const heir = [...w.kingdoms].some((k) => k.heirId === p.id);
     return `<div class="decision">

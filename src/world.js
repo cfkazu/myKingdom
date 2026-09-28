@@ -1190,7 +1190,8 @@ export class World {
   // 名前：祖父母や親、歴代の王にちなむことが多い
   _childName(sex, w, h, culture, dynastyId) {
     // 生きているきょうだいと同じ名前は避ける
-    const taken = new Set(w.children.map((id) => this.get(id)).filter((c) => c.alive).map((c) => c.name));
+    // 生きているきょうだい・親と同じ名前は避ける（誰が誰かわかりやすく）
+    const taken = new Set([...w.children.map((id) => this.get(id)).filter((c) => c.alive), w, h].filter((x) => x.alive).map((c) => c.name));
     for (let tries = 0; tries < 6; tries++) {
       const n = this._pickChildName(sex, w, h, culture, dynastyId);
       if (!taken.has(n)) return n;
