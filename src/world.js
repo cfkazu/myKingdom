@@ -13,6 +13,7 @@ import { generateMap, partition, generateDuchies } from './map.js';
 import { FeudalMixin, setupFeudal } from './feudal.js';
 import { PlayerMixin } from './player.js';
 import { EventsMixin, isSetAside } from './events.js';
+import { GoalsMixin } from './goals.js';
 
 export const ADULT = 16;
 
@@ -519,6 +520,7 @@ export class World {
     this._factions();
     this._housekeeping();
     this._playerTick();
+    this._goalTick();
     this._playerEvents();
     this._record();
   }
@@ -752,11 +754,15 @@ export class World {
       const heir = this.ruler(k);
       const kin = [...ruler.children, ...(this.get(ruler.fatherId)?.children ?? [])].map((id) => this.get(id));
       const rivals = kin.filter((p) => p && p.alive && p !== heir && p.rulerOf == null && this.age(p) >= 16 && p.dynastyId === ruler.dynastyId && p.pheno.ambition > 45);
+      const claimed = [];
       for (const p of rivals) {
         if (p.claims.includes(k.id) || !this.rng.chance(0.6)) continue;
         p.claims.push(k.id);
-        this.addLog('succession', `${this.pn(p)} は ${heir ? this.pn(heir) : '新王'} の即位を認めず、${this.kn(k)} の王位を主張している。`, [k.id]);
+        claimed.push(p);
       }
+      // 何人いても、年代記には 1 行にまとめる
+      if (claimed.length)
+        this.addLog('succession', `${claimed.slice(0, 3).map((p) => this.pn(p)).join('・')}${claimed.length > 3 ? ` ほか ${claimed.length - 3} 人` : ''} が ${heir ? this.pn(heir) : '新王'} の即位を認めず、${this.kn(k)} の王位を主張している。`, [k.id]);
     }
   }
 
@@ -1091,14 +1097,14 @@ export class World {
     }
   }
 
-  _wed(m, w, quiet = false) {
+  _wed(m, w, quiet = false, forceMatri = false) {
     // 妻が継承者か女王で、夫がそうでなければ、子は妻の家名を継ぐ（女系婚）
     const wHeir = w.rulerOf != null || this.isHeirAnywhere(w);
     const mHeir = m.rulerOf != null || this.isHeirAnywhere(m);
     // 王の娘が格下の家（王家でない家）に嫁ぐときも、子は王家の名を継ぐ
     const wRoyalDaughter = this.kingdoms.some((k) => k.alive && k.rulerId != null && (w.fatherId === k.rulerId || w.motherId === k.rulerId));
     const mLesser = !mHeir && m.rulerOf == null && !this.royalOf(m) && (this.dyn(m)?.prestige ?? 0) < (this.dyn(w)?.prestige ?? 0);
-    const matrilineal = m.dynastyId !== w.dynastyId && ((wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
+    const matrilineal = m.dynastyId !== w.dynastyId && (forceMatri || (wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
     this._marry(m, w, matrilineal);
     this.stats.marriages++;
     // 住む国：ふつうは夫の国、女系婚なら妻の国。君主は動かない
@@ -1510,7 +1516,12 @@ export class World {
       const lost = (onA && !aWins) || (onD && aWins);
       risk(p, lost ? 0.02 + 0.03 * margin : 0.008);
     }
-    if (margin > 0.35 || dead.some((p) => p === cA || p === cD || p.rulerOf != null)) {
+    // 年代記に載せる会戦：あなたの国の戦い、王や指揮官が倒れた戦い、歴史的な大勝だけ
+    const pk = this.playerKingdom?.() ?? null;
+    const mine = pk && (A === pk || D === pk || w.attackerAllies.includes(pk.id) || w.defenderAllies.includes(pk.id));
+    const pd = this.player && !this.player.over ? this.player.dynastyId : null;
+    const mineRebel = pd != null && (w.members ?? []).includes(pd);
+    if ((mine && margin > 0.2) || mineRebel || margin > 0.6 || dead.some((p) => p === cA || p === cD || p.rulerOf != null)) {
       const wc = aWins ? cA : cD;
       this.addLog('war', `${battle.name}：${wc ? `${this.pn(wc)} 率いる` : ''}${aWins ? (civil ? '反乱軍' : this.kn(A)) : this.kn(D)} 軍が大勝した。`, [A.id, D.id]);
     }
@@ -1852,4 +1863,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin);

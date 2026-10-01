@@ -25,9 +25,10 @@ export const PlayerMixin = {
       return;
     }
     const d = this.dynasties[dynId];
-    this.player = { dynastyId: dynId, startYear: this.year, decisions: [], nextId: 1, asked: new Map(), joined: null, over: false, peak: this.houseStanding(d) };
+    this.player = { dynastyId: dynId, startYear: this.year, decisions: [], nextId: 1, asked: new Map(), joined: null, over: false, peak: this.houseStanding(d), examined: new Set(), achievements: [], goal: null };
     const h = this.head(d);
     this.addLog('event', `あなたは ${d.name}家の当主 ${h ? this.pn(h) : ''} として歴史に加わった。`, h && h.kingdomId != null ? [h.kingdomId] : []);
+    this._goalDecision();
   },
 
   isPlayerHouse(p) {
@@ -172,6 +173,11 @@ export const PlayerMixin = {
     const d = this.player.decisions[i];
     this.player.decisions.splice(i, 1);
     if (d.type === 'event') return this._resolveEvent(d, choice);
+    if (d.type === 'goal') {
+      const o = d.options.find((x) => x.key === choice);
+      this.setGoal(o ? o.key : null, o ? o.target : null);
+      return o ? `🎯 家の目標：${o.label}` : null;
+    }
     if (d.type === 'marriage') {
       const p = this.get(d.personId);
       if (!p.alive || p.spouseId != null || choice === 'later') return null;
@@ -184,10 +190,11 @@ export const PlayerMixin = {
         this._wed(p.sex === 'M' ? p : sp, p.sex === 'M' ? sp : p);
         return `${p.name}は平民の出の${sp.name}と結ばれた。`;
       }
-      const c = this.get(Number(choice));
+      const matri = String(choice).startsWith('matri:');
+      const c = this.get(Number(String(choice).replace('matri:', '')));
       if (!c || !c.alive || c.spouseId != null) return '相手はもう別の縁談がまとまっていた。';
-      this._wed(p.sex === 'M' ? p : c, p.sex === 'M' ? c : p);
-      return `${p.name}と${c.name}の縁談がまとまった。`;
+      this._wed(p.sex === 'M' ? p : c, p.sex === 'M' ? c : p, false, matri);
+      return matri ? `${c.name}を入婿に迎えた。子は${this.dyn(p).name}家を継ぐ。` : `${p.name}と${c.name}の縁談がまとまった。`;
     }
     if (d.type === 'education') {
       const p = this.get(d.personId);

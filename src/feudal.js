@@ -275,7 +275,9 @@ export const FeudalMixin = {
     const limit = this.demesneLimit(k);
     // プレイヤーの国：恩賞は自分で決め、没収も自分で行う
     if (k === this.playerKingdom()) {
-      if (demesne.length > limit && (k.keepUntil ?? 0) <= this.year) {
+      // 恩賞の相談は 5 年に一度まで（毎年は聞かない）
+      if (demesne.length > limit && (k.keepUntil ?? 0) <= this.year && this.year - (k.grantAsked ?? -99) >= 5) {
+        k.grantAsked = this.year;
         const cap = this.provinces[k.capital];
         const give = demesne.filter((pr) => pr.id !== k.capital).sort((a, b) => Math.hypot(b.cx - cap.cx, b.cy - cap.cy) - Math.hypot(a.cx - cap.cx, a.cy - cap.cy))[0];
         if (give) this._playerGrantDecision(k, give);

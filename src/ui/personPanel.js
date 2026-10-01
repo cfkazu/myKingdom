@@ -4,6 +4,7 @@ import { LOCI, TRAITS, genotypeString, locusEffect, isCarrier, predictOffspring,
 import { createRng } from '../rng.js';
 import { kinshipLabel } from '../pedigree.js';
 import { portraitSVG } from './portrait.js';
+import { APTITUDES, EXAMINE_COST } from '../goals.js';
 import { esc, personLink, kingdomLink, lifeSpan } from './util.js';
 
 const bar = (label, v, cls = '', hint = '') => `<span title="${hint}">${label}</span><div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div><span class="v">${Math.round(v)}</span>`;
@@ -19,6 +20,7 @@ export class PersonPanel {
       if (b.dataset.act === 'unpin') app.pin(null);
       if (b.dataset.act === 'tree') app.showTab('family');
       if (b.dataset.act === 'follow') app.follow(Number(b.dataset.id));
+      if (b.dataset.act === 'examine') app.examine(Number(b.dataset.id));
     });
   }
 
@@ -46,7 +48,7 @@ export class PersonPanel {
     if (ph.strength >= 80) badges.push('<span class="badge good">剛勇</span>');
     if (ph.charisma >= 80) badges.push('<span class="badge good">カリスマ</span>');
     if (p.F >= 0.05) badges.push(`<span class="badge gene">近親婚の子（F=${p.F.toFixed(3)}）</span>`);
-    const carriers = !p.genome ? [] : ['HEM', 'JAW', 'MAD', 'LET', 'DEL1', 'DEL2', 'DEL3', 'DEL4'].filter((key) => isCarrier(p.genome, key));
+    const carriers = !p.genome || !w.knowsGenes(p) ? [] : ['HEM', 'JAW', 'MAD', 'LET', 'DEL1', 'DEL2', 'DEL3', 'DEL4'].filter((key) => isCarrier(p.genome, key));
     if (carriers.length) badges.push(`<span class="badge gene" title="本人は健康だが子に伝えうる">保因者：${carriers.map((key) => LOCI.find((l) => l.key === key).name).join('・')}</span>`);
 
     const father = w.get(p.fatherId);
@@ -102,13 +104,16 @@ export class PersonPanel {
       ${w.dyn(p) && this.app.followDynasty !== p.dynastyId ? `<button type="button" data-act="follow" data-id="${p.dynastyId}" title="この家の当主を追いかけます。当主が亡くなると次の当主に切り替わり、年代記もこの家の出来事に絞れます">📌 ${esc(w.dyn(p).name)}家を追う</button>` : ''}
       ${pinned && pinned.id === p.id ? '<button type="button" data-act="unpin">💍 縁談占いをやめる</button>' : `<button type="button" data-act="pin" data-id="${p.id}" title="この人を固定してから別の人を選ぶと、ふたりの縁談の相性と子の予測が見られます">💍 この人の縁談を占う</button>`}</p>
       ${this._match(w, pinned, p)}
+      ${this._aptitude(w, p)}
       ${
-        p.genome
+        p.genome && w.knowsGenes(p)
           ? `<details>
         <summary>🧬 遺伝子をくわしく見る（${LOCI.length} 個の遺伝子）</summary>
         ${this._genotype(p)}
       </details>`
-          : '<p class="small muted">遠い昔の人なので、遺伝子型の記録は残っていません（姿と能力の記録だけが残る）。</p>'
+          : p.genome
+            ? ''
+            : '<p class="small muted">遠い昔の人なので、遺伝子型の記録は残っていません（姿と能力の記録だけが残る）。</p>'
       }
     `;
     if (open && this.el.querySelector('details')) this.el.querySelector('details').open = true;
@@ -129,11 +134,27 @@ export class PersonPanel {
       <dt>忠誠</dt><dd><span class="opinion ${o >= 10 ? 'pos' : o <= -10 ? 'neg' : ''}">${o > 0 ? '+' : ''}${o}</span><div class="small muted">${parts.map(([v, t]) => `${esc(t)} ${v > 0 ? '+' : ''}${v}`).join('、')}</div></dd>` : ''}`;
   }
 
+  // 素質：子に伝わる遺伝子の「＋」の数。よその家の人は鑑定するまでわからない
+  _aptitude(w, p) {
+    if (!p.genome) return '';
+    if (!w.knowsGenes(p)) {
+      return `<div class="apt-box small"><b>🧬 素質</b>：よその家の人の遺伝子は、鑑定するまでわかりません。<button type="button" data-act="examine" data-id="${p.id}">🔍 鑑定する（家格 −${EXAMINE_COST}）</button></div>`;
+    }
+    const rows = APTITUDES.map((a) => {
+      const v = w.aptitude(p, a.trait);
+      return `<span>${a.label}</span><div class="bar apt-bar"><i style="width:${Math.round(v.value * 100)}%"></i></div><span class="v">＋${v.plus}/${v.copies}</span>`;
+    }).join('');
+    const carr = w.carriers(p).map((k) => LOCI.find((l) => l.key === k).name);
+    return `<h3>🧬 素質（子に伝わる遺伝子）</h3><div class="bars">${rows}</div>
+      <p class="small muted">上の能力は育ちも込みの見た目の値。子に伝わるのは、この「＋」の数です。${carr.length ? `<span class="bad">保因者：${esc(carr.join('・'))}</span>` : '隠れた病の遺伝子はない。'}</p>`;
+  }
+
   _match(w, a, b) {
     if (!a || a.id === b.id || !a.genome || !b.genome) return '';
     if (a.sex === b.sex) return `<div class="pinbox">💍 ${personLink(w, a)} の縁談を占っています。異性を選ぶと、ふたりの相性と生まれる子の予測が出ます。</div>`;
     const [mom, dad] = a.sex === 'F' ? [a, b] : [b, a];
     const phi = w.ped.kinship(a.id, b.id);
+    if (!w.knowsGenes(a) || !w.knowsGenes(b)) return `<div class="pinbox">💍 ${personLink(w, a)} × ${personLink(w, b)}：よその家の人の遺伝子は、鑑定するまでわかりません。人物の「🔍 鑑定する」で調べると、生まれる子の予測が出ます。</div>`;
     const pred = predictOffspring(mom.genome, dad.genome, createRng(`${mom.id}x${dad.id}`), 1500);
     const pct = (x, n = pred.born) => `${Math.round((100 * x) / Math.max(1, n))}%`;
     const sa = w.spouseScore(a, b, phi);

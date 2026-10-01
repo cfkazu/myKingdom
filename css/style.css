@@ -1371,3 +1371,56 @@ select:focus-visible {
   line-height: 1.7;
   max-width: 60ch;
 }
+
+.cand-btns {
+  display: grid;
+  gap: 4px;
+}
+
+.apt {
+  margin-top: 2px;
+}
+
+.apt-bar > i {
+  background: var(--gene);
+}
+
+.apt-box {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.goal-bar {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.goal-bar button {
+  margin-left: auto;
+}
+
+.goal-meter {
+  display: inline-block;
+  width: 90px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.goal-meter > i {
+  display: block;
+  height: 100%;
+  background: var(--gene);
+}
+
+.goal-hint {
+  color: var(--gene);
+  margin: 4px 0 0;
+}

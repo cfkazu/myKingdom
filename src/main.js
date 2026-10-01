@@ -236,7 +236,20 @@ class App {
     this.setPlaying(true);
   }
 
+  // 鑑定：家格を払って、よその家の人の遺伝子を調べる
+  examine(pid) {
+    const ok = this.world.examine(this.world.get(pid));
+    if (!ok) this.toast('家格が足りません。');
+    this.renderAll();
+  }
+
   decide(id, choice) {
+    if (choice === 'another') {
+      this.world.decide(id, 'ok');
+      this.choosing = true;
+      this.renderAll();
+      return;
+    }
     const msg = this.world.decide(id, choice);
     if (msg) this.toast(msg);
     this.renderAll();
@@ -290,6 +303,15 @@ class App {
     this.showTab('person');
   }
 
+  _goalBar(w, d) {
+    if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
+    const g = w.goalProgress();
+    const ach = (w.player.achievements ?? []).map((x) => x.icon).join('');
+    if (!g) return `<div class="goal-bar small">🎯 目標なし ${ach}<button type="button" class="small" data-goal="1">目標を選ぶ</button></div>`;
+    const bar = g.ratio != null ? `<span class="goal-meter"><i style="width:${Math.round(g.ratio * 100)}%"></i></span>` : '';
+    return `<div class="goal-bar small">${g.icon} <b>${g.label}</b>：${g.text} ${bar}${g.met ? `<span class="good">達成中（${g.held}/${g.hold} 年）</span>` : ''} ${ach}<button type="button" class="small" data-goal="1">目標を変える</button></div>`;
+  }
+
   renderFollowBar() {
     const el = $('#follow-bar');
     const w = this.world;
@@ -306,12 +328,17 @@ class App {
       el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
       return;
     }
-    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._goalBar(w, d)}${
       w.player && w.player.dynastyId === d.id && !w.player.over && w.houseStanding(d).rank === 0
         ? '<div class="small hint">⚠️ あなたの家は所領を失いました。王家や大きな家との縁談で請求権や同盟を得るか、家タブから別の家に乗り換えましょう。</div>'
         : ''
     }`;
     el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
+    el.querySelector('[data-goal]')?.addEventListener('click', () => {
+      this.world._goalDecision();
+      this.setPlaying(false);
+      this.renderAll();
+    });
   }
 
   pin(id) {

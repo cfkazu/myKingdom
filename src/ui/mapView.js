@@ -491,7 +491,7 @@ export class MapView {
   _geneColor(p) {
     const ph = p.pheno;
     if (ph.hemophilia || ph.jaw || ph.madness || ph.load > 0) return '#e0332b';
-    if (!p.genome) return '#9a9588';
+    if (!p.genome || !this.world.knowsGenes(p)) return '#9a9588';
     if (isCarrier(p.genome, 'HEM')) return '#b04fd6';
     if (['JAW', 'MAD', 'DEL1', 'DEL2', 'DEL3', 'DEL4'].some((k) => isCarrier(p.genome, k))) return '#d8c4ec';
     return '#9a9588';

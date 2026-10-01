@@ -200,7 +200,12 @@ export const EventsMixin = {
       'last',
       head.id,
       '当主の最期',
-      `${this.pn(head)}（${this.age(head)}歳）は病の床で死期を悟り、跡継ぎの ${this.pn(heir)} を枕元に呼んだ。何を遺すか。`,
+      this.rng.pick([
+        `${this.pn(head)}（${this.age(head)}歳）は病の床で死期を悟り、跡継ぎの ${this.pn(heir)} を枕元に呼んだ。何を遺すか。`,
+        `狩りの帰りに倒れた ${this.pn(head)}（${this.age(head)}歳）は、もう馬に乗れないと悟った。${this.pn(heir)} の手を取り、最後の言葉を探している。`,
+        `${this.pn(head)}（${this.age(head)}歳）の咳が止まらない。侍医は首を振った。${this.pn(heir)} は父の言葉を待っている。`,
+        `冬の夜、${this.pn(head)}（${this.age(head)}歳）は家の古い肖像画の前に ${this.pn(heir)} を呼び、自分の時が尽きつつあると告げた。`,
+      ]),
       [
         { id: 'rule', label: '政の心得を授ける', desc: `${heir.name}の知略とカリスマが少し伸びる` },
         { id: 'war', label: '武の心得を授ける', desc: `${heir.name}の体の強さが少し伸びる` },
