@@ -53,7 +53,7 @@ export class PersonPanel {
 
     const father = w.get(p.fatherId);
     const mother = w.get(p.motherId);
-    const spouses = p.spouses.map((s) => `${personLink(w, w.get(s.id))}（${s.year}年${s.matrilineal ? '・女系婚' : ''}）`);
+    const spouses = p.spouses.map((s) => `${personLink(w, w.get(s.id))}（${s.year}年${s.matrilineal ? '・女系婚' : ''}）${s.id === p.spouseId && w.bondLabel(p) ? ` <span class="small">${w.bondLabel(p)}</span>` : ''}`);
     const kids = p.children.map((id) => w.get(id)).map((c) => personLink(w, c, { short: true }));
     const claims = p.claims.map((id) => kingdomLink(w.kingdoms[id]));
     const reign = p.rulerOfEver != null ? w.kingdoms[p.rulerOfEver].rulers.find((r) => r.id === p.id) : null;

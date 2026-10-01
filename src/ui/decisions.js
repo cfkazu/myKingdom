@@ -18,6 +18,8 @@ export class DecisionPanel {
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-choice]');
       if (b) app.decide(Number(b.dataset.id), b.dataset.choice);
+      const fl = e.target.closest('[data-flash]');
+      if (fl) app.flashProvinces(fl.dataset.flash.split(',').filter(Boolean).map(Number));
       const ex = e.target.closest('[data-examine]');
       if (ex) app.examine(Number(ex.dataset.examine));
       const pick = e.target.closest('[data-play]');
@@ -40,14 +42,40 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d) }[d.type]();
-    const label = { goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d) }[d.type]();
+    const label = { news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
       .map((x) => `<span class="badge">${label[x.type]}${x.personId != null ? `：${esc(w.get(x.personId).name)}` : ''}</span>`)
       .join('');
     this.el.innerHTML = `${body}${more > 0 ? `<p class="small muted queue">このあと待っている決断（${more}）：${queue}</p>` : ''}`;
+  }
+
+  // ───────── 報せ ─────────
+
+  _newsCard(w, d) {
+    // はじめて出たとき、関わる地方を地図で光らせる
+    if (!d.flashed) {
+      d.flashed = true;
+      const all = d.items.flatMap((x) => x.pids ?? []);
+      if (all.length) this.app.flashProvinces(all);
+    }
+    const items = d.items
+      .map(
+        (x) => `<div class="news-item">
+        <h3>${x.icon} ${richText(w, x.title)}</h3>
+        <p>${richText(w, x.body)}</p>
+        <dl class="kv small"><dt>なぜ</dt><dd>${richText(w, x.why)}</dd><dt>あなたには</dt><dd>${richText(w, x.means)}</dd></dl>
+        ${(x.pids ?? []).length ? `<button type="button" class="small" data-flash="${x.pids.join(',')}">🗺️ 地図で見る</button>` : ''}
+      </div>`,
+      )
+      .join('');
+    return `<div class="decision news">
+      <div class="eyebrow">📣 ${d.year}年の報せ</div><h2>あなたの国と家に、大きな出来事がありました</h2>
+      ${items}
+      <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="ok">わかった</button></p>
+    </div>`;
   }
 
   // ───────── はじめに家を選ぶ ─────────
@@ -87,7 +115,12 @@ export class DecisionPanel {
       const phi = w.ped.kinship(p.id, c.id);
       const pr = w.matchPreview(p, c);
       const cd = w.dyn(c);
-      const feud = w.feudBetween(w.dyn(p), cd);
+      const offer = (d.offers ?? []).find((o) => o.id === c.id);
+      const hooks = offer?.hooks ?? [];
+      // 縁の「和解」と同じことを言うので、因縁の行は縁がないときだけ
+      const feud = hooks.some((h) => h.key === 'feud') ? null : w.feudBetween(w.dyn(p), cd);
+      const cost = offer?.cost ?? 0;
+      const prestige = w.playerDynasty()?.prestige ?? 0;
       const ck = w.kingdomOf(c);
       const royal = w.royalOf(c);
       // よその家の人の遺伝子は、鑑定するまでわからない
@@ -105,16 +138,18 @@ export class DecisionPanel {
         ? `<div class="small apt">🧬 素質：${apt}${carr.length ? `・<span class="bad">保因者：${esc(carr.join('・'))}</span>` : '・隠れた病の遺伝子なし'}</div>`
         : `<div class="small apt muted">🧬 素質と隠れた遺伝子は、まだわかりません <button type="button" class="small" data-examine="${c.id}" title="家格 ${EXAMINE_COST} を払って、侍医にこの人の血筋を調べさせる">🔍 鑑定する（家格 −${EXAMINE_COST}）</button></div>`;
       // 入婿：女性の当主・娘の相手に、家を継がない男性を迎えるとき
-      const canMatri = p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c) && (w.dyn(c)?.prestige ?? 0) <= (w.dyn(p)?.prestige ?? 0) + 5;
+      const canMatri = !cost && p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c) && (w.dyn(c)?.prestige ?? 0) <= (w.dyn(p)?.prestige ?? 0) + 5;
       const perks = [];
       if (c.rulerOf != null) perks.push(`${w.kingdoms[c.rulerOf].name}の君主`);
       else if (royal) perks.push(`${royal.name}の王族（同盟）`);
       if (c.gentry) perks.push('騎士の家の出（家格は低いが、新しい血を入れられる）');
       if (w.isHeirAnywhere(c)) perks.push('王位継承者');
       if (cd && w.houseTitle(cd)) perks.push(w.houseTitle(cd));
-      return `<div class="cand">
+      return `<div class="cand${hooks.some((h) => h.key === 'love') ? ' cand-love' : ''}${cost ? ' cand-reach' : ''}">
         ${portraitSVG(w, c, 64)}
         <div class="cand-body">
+          ${cost ? `<div class="small reach">🌹 高嶺の花：ふつうなら断ってくる格上の相手。贈り物（家格 −${cost}）を積めば受けてくれる</div>` : ''}
+          ${hooks.length ? `<div class="hooks">${hooks.map((h) => `<span class="hook hook-${h.key}">${h.icon} ${esc(h.text)}</span>`).join('')}</div>` : ''}
           <div><b>${personLink(w, c)}</b> <span class="small muted">${w.age(c)}歳${ck ? `・${esc(ck.name)}` : ''}</span></div>
           <div class="small">${ck && ck.id !== p.kingdomId ? `<span class="muted">外国（${esc(ck.name)}）・</span>` : ''}${perks.length ? `<span class="good">${esc(perks.join('・'))}</span>・` : ''}魅力 ${Math.round(w.charm(c))}・知略 ${Math.round(c.pheno.intellect)}・${HAIR_LABEL[c.pheno.hair]}・${EYE_LABEL[c.pheno.eye]}</div>
           <div class="small">${phi > 0.001 ? `<span class="${phi >= 0.05 ? 'bad' : ''}">血縁：${kinshipLabel(phi)}（子の近交係数 ${phi.toFixed(3)}）</span>` : '血縁なし'}${
@@ -129,15 +164,15 @@ export class DecisionPanel {
           ${genesLine}
           ${feud ? `<div class="small feud">⚔ 因縁：${richText(w, feud)}。縁組すれば恨みは和らぐ。</div>` : ''}
         </div>
-        <div class="cand-btns"><button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">この人と</button>${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿で</button>` : ''}</div>
+        <div class="cand-btns">${cost ? `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>口説く（家格 −${cost}）</button>${prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}` : `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">${d.proposal ? '申し込みを受ける' : 'この人と'}</button>`}${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿で</button>` : ''}</div>
       </div>`;
     });
     const who = p === w.playerHead() ? '当主であるあなた' : `${esc(p.name)}（${w.age(p)}歳・${p.sex === 'M' ? '男' : '女'}）`;
     return `<div class="decision">
-      <div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 縁談</div><h2>${who}の結婚相手を選んでください</h2>
+      <div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 ${d.proposal ? '縁談の申し込み' : '縁談'}</div><h2>${d.proposal ? `${esc(w.dyn(w.get(d.candidateIds[0]))?.name ?? '')}家から、${who}に縁談の申し込みが来ました` : `${who}の結婚相手を選んでください`}</h2>
       <p class="small muted">相手の家が受けてくれそうな候補です。見た目の能力は育ちも込み。子に伝わるのは🧬素質のほうです。よその家の人の素質と隠れた病の遺伝子は、鑑定するまでわかりません（いまの家格 ${Math.round(w.playerDynasty()?.prestige ?? 0)}）。</p>${this._goalHint(w)}</div></div>
       <div class="cands">${cards.join('') || '<p class="small">ふさわしい相手が見つかりません。</p>'}</div>
-      <p class="choices"><button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">今は見送る（数年後にまた）</button></p>
+      <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">今は見送る（数年後にまた）</button>`}</p>
     </div>`;
   }
 

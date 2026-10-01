@@ -15,6 +15,8 @@ import { PlayerMixin } from './player.js';
 import { EventsMixin, isSetAside } from './events.js';
 import { GoalsMixin } from './goals.js';
 import { LedgerMixin } from './ledger.js';
+import { MatchMixin } from './matchmaking.js';
+import { NewsMixin } from './news.js';
 
 export const ADULT = 16;
 
@@ -524,6 +526,7 @@ export class World {
     this._playerTick();
     this._goalTick();
     this._playerEvents();
+    this._flushNews();
     this._record();
   }
 
@@ -941,6 +944,7 @@ export class World {
       const how2 = { inherit: '即位した', elected: '選挙で王に選ばれた', conquest: '征服によって王位に就いた', usurp: '王位を奪った', independence: '独立を勝ち取り王位に就いた', union: '即位した' }[how];
       this.addLog('succession', `${this.pn(p)} が ${this.kn(k)} の${p.sex === 'M' ? '王' : '女王'}として${how2}（${this.age(p)}歳）。`, [k.id]);
       if (d && prevDyn !== d.id) this.addLog('dynasty', `${this.kn(k)} で ${d.name}朝が始まった。`, [k.id]);
+      if (prevDyn !== p.dynastyId) this._newsNewKing(k, p, how);
     }
     this.headCache?.delete(p.dynastyId);
     k.heirId = null;
@@ -1119,7 +1123,7 @@ export class World {
     }
   }
 
-  _wed(m, w, quiet = false, forceMatri = false) {
+  _wed(m, w, quiet = false, forceMatri = false, love = false) {
     // 妻が継承者か女王で、夫がそうでなければ、子は妻の家名を継ぐ（女系婚）
     const wHeir = w.rulerOf != null || this.isHeirAnywhere(w);
     const mHeir = m.rulerOf != null || this.isHeirAnywhere(m);
@@ -1128,6 +1132,7 @@ export class World {
     const mLesser = !mHeir && m.rulerOf == null && !this.royalOf(m) && (this.dyn(m)?.prestige ?? 0) < (this.dyn(w)?.prestige ?? 0);
     const matrilineal = m.dynastyId !== w.dynastyId && (forceMatri || (wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
     this._marry(m, w, matrilineal);
+    this._bond(m, w, love);
     this.stats.marriages++;
     // 住む国：ふつうは夫の国、女系婚なら妻の国。君主は動かない
     const [mover, stay] = matrilineal ? [m, w] : [w, m];
@@ -1168,7 +1173,7 @@ export class World {
       const dynastic = w.rulerOf != null || h.rulerOf != null ? 1.3 : 1;
       const royalHouse = (rulingDyns.has(h.dynastyId) && this.royalOf(h)) || (rulingDyns.has(w.dynastyId) && this.royalOf(w));
       const room = royalHouse ? Math.max(cap, 0.6) : cap;
-      const p = 0.42 * w.pheno.fertility * h.pheno.fertility * af * Math.min(1.1, room * dynastic) * (w.mad ? 0.7 : 1);
+      const p = 0.42 * w.pheno.fertility * h.pheno.fertility * af * Math.min(1.1, room * dynastic) * (w.mad ? 0.7 : 1) * this.bondFertility(w);
       if (!this.rng.chance(p)) continue;
       this._birth(w, h);
       if (w.alive && this.rng.chance(0.015)) this._birth(w, h, true);
@@ -1179,7 +1184,7 @@ export class World {
     w.lastBirthYear = this.year;
     // プレイヤーの当主の妻は、ごくまれに別の男の子を産む（不義の子の噂のもと）
     let sire = h;
-    if (this.player && !this.player.over && h === this.playerHead() && this.rng.chance(0.04)) {
+    if (this.player && !this.player.over && h === this.playerHead() && this.rng.chance(0.04 * ({ love: 0.3, cold: 3 }[w.bond?.with === h.id ? w.bond.kind : ''] ?? 1))) {
       const men = this.living.filter((x) => x.alive && x.sex === 'M' && x !== h && x.kingdomId === w.kingdomId && this.age(x) >= 18 && this.age(x) <= 50 && x.genome);
       if (men.length) sire = this.rng.pick(men);
     }
@@ -1214,6 +1219,8 @@ export class World {
     });
     this.stats.births++;
     if (sire !== h) c.trueFatherId = sire.id;
+    // 王家から嫁いできた親の血：子は王位への請求権を持つ
+    for (const par of [w, h]) for (const kid of par.bloodClaims ?? []) if (this.kingdoms[kid].alive && !c.claims.includes(kid)) c.claims.push(kid);
     this._fx('birth', this.homeProvince(c), c.id, h.rulerOf != null || w.rulerOf != null);
     const rk = this.royalOf(c);
     if (rk && (h.rulerOf != null || w.rulerOf != null)) {
@@ -1364,6 +1371,7 @@ export class World {
     }
     this.wars.push(w);
     w.name = this._warName(w);
+    this._newsWarStart(w);
     return w;
   }
 
@@ -1587,6 +1595,7 @@ export class World {
     w.ended = true;
     w.endYear = this.year;
     w.result = result;
+    this._newsWarEnd(w, result);
     const A = this.kingdoms[w.attackerId];
     const D = this.kingdoms[w.defenderId];
     const key = A.id < D.id ? `${A.id}-${D.id}` : `${D.id}-${A.id}`;
@@ -1660,7 +1669,11 @@ export class World {
     const ld = this.dyn(leader);
     const kd = this.ruler(k) ? this.dyn(this.ruler(k)) : null;
     this._avenge(kd, ld, [k.id]);
-    if (ld) for (const pr of this.countiesOf(ld.id, k.id)) pr.holder = null;
+    if (ld)
+      for (const pr of this.countiesOf(ld.id, k.id)) {
+        this._newsRevoked(ld, pr, `${w.name}に負け、盟主の家として所領を没収された。`);
+        pr.holder = null;
+      }
     for (const id of w.members ?? []) {
       const d = this.dynasties[id];
       d.prestige *= 0.6;
@@ -1766,6 +1779,7 @@ export class World {
     this._crown(nk, leader, 'independence');
     for (const id of members) if (id !== ld?.id) this._remember(this.dynasties[id], 25, '独立の同志', nk);
     this.addLog('war', `${w.name}は反乱軍の勝利に終わり、${provs.map((id) => this.provinces[id].name).join('・')} から ${this.kn(nk)} が${revive ? '再興' : '建国'}された。`, [D.id, nk.id]);
+    this._newsSecede(D, nk, provs);
   }
 
   // loser の地方を n 個、winner に割譲する（winner に接する地方から）
@@ -1786,6 +1800,7 @@ export class World {
     const from = this.kingdoms[pr.ownerId];
     // 割譲された伯爵領は新しい王の王領になる。持っていた家は土地を失う
     if (pr.holder != null && from && !this.isDemesne(pr)) this._remember(this.dynasties[pr.holder], -20, '領地を守れなかった', from);
+    this._newsTransfer(pr, from, to, from && !this.isDemesne(pr) ? pr.holder : null);
     pr.holder = null;
     pr.ownerId = to.id;
     if (from && from.capital === pr.id) this._ensureCapital(from);
@@ -1805,6 +1820,7 @@ export class World {
     }
     for (const p of this.living) if (p.alive && p.kingdomId === k.id) p.kingdomId = by.id;
     this.addLog('dynasty', `${this.kn(k)} は ${this.kn(by)} に滅ぼされた。`, [k.id, by.id]);
+    this._newsFall(k, by);
     this._destroy(k);
   }
 
@@ -1933,4 +1949,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin);

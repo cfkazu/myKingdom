@@ -1,0 +1,205 @@
+// 縁談に色をつける：候補ごとの「縁」（持参金・王位の血・恋仲・和解…）、高嶺の花、よその家からの申し込み、夫婦仲。
+// World にメソッドとして組み込む。
+//
+// - 縁は候補の身の上から決まり、選ぶと効く（家格・請求権・恨みの和解・夫婦仲など）。
+// - 高嶺の花（ふつうは断ってくる格上の相手）も候補にまじる。贈り物（家格）を積めば必ず受けてくれる。
+// - よその家から申し込みが来る。王家の申し込みを断ると、王の機嫌をそこねる。
+// - 結婚したふたりには夫婦仲がある。仲睦まじいと子に恵まれ、冷え切ると不義が起きやすい。
+
+const TRAIT_FAME = [
+  ['beauty', '美貌', '容姿'],
+  ['intellect', '才女', '知略'],
+  ['strength', '剛勇', '体の強さ'],
+  ['charisma', '人望', 'カリスマ'],
+];
+
+export const MatchMixin = {
+  // 候補 c の縁（p から見て）。love は恋仲の相手かどうか
+  marriageHooks(p, c, love = false) {
+    const hooks = [];
+    const my = this.dyn(p);
+    const cd = this.dyn(c);
+    if (love) hooks.push({ key: 'love', icon: '💕', text: `${c.name}は${p.name}を慕っている。夫婦仲が良くなり、子に恵まれやすい` });
+    // 王位の血：よその国の君主の子・君主本人・請求権を持つ人
+    const ck = c.rulerOf != null ? this.kingdoms[c.rulerOf] : this.kingdoms.find((k) => k.alive && k.rulerId != null && (c.fatherId === k.rulerId || c.motherId === k.rulerId));
+    const claimK = ck && ck.id !== p.kingdomId ? ck : c.claims.map((id) => this.kingdoms[id]).find((k) => k && k.alive && k.id !== p.kingdomId);
+    if (claimK) hooks.push({ key: 'claim', icon: '👑', kingdomId: claimK.id, text: `生まれる子は ${claimK.name} の王位への請求権を持つ` });
+    // 持参金：格上の家から
+    if (cd && my && !c.lowborn && cd.prestige >= my.prestige + 40) {
+      const n = Math.round(Math.min(25, (cd.prestige - my.prestige) * 0.12 + 5));
+      hooks.push({ key: 'dowry', icon: '💰', amount: n, text: `持参金：家格 +${n}` });
+    }
+    // 和解：恨みのある家と
+    if (cd && my && this.feudBetween?.(my, cd)) hooks.push({ key: 'feud', icon: '🕊', text: `${cd.name}家との因縁を、この縁組で大きく和らげられる` });
+    // 主君の王家と
+    const liege = my ? this.kingdoms[my.kingdomId] : null;
+    const lr = liege && liege.alive ? this.ruler(liege) : null;
+    if (lr && lr.dynastyId !== my.id && cd && cd.id === lr.dynastyId) hooks.push({ key: 'liege', icon: '🏰', text: '主君の王家との縁組：王への忠誠が上がる' });
+    // 子宝の実績：前の結婚で子をもうけた人
+    const kids = c.children.length;
+    if (c.spouses.length && kids >= 2) hooks.push({ key: 'proven', icon: '👶', text: `前の結婚で ${kids} 人の子をもうけた（子宝の実績）` });
+    // 評判
+    for (const [t, label, name] of TRAIT_FAME) {
+      if (c.pheno[t] >= 80) {
+        hooks.push({ key: 'fame', icon: '✨', value: c.pheno[t], text: `${c.sex === 'F' && t === 'intellect' ? label : t === 'intellect' ? '俊英' : label}の誉れ（${name} ${Math.round(c.pheno[t])}）` });
+        break;
+      }
+    }
+    if (c.gentry) hooks.push({ key: 'gentry', icon: '🌱', text: '騎士の家の出：家格は低いが、新しい血を入れられる' });
+    return hooks;
+  },
+
+  // 高嶺の花：王・王族・継承者や、ずっと格上の家の人。贈り物（家格）を積めば必ず受けてくれる。0 ならふつうの相手
+  courtCost(p, c, theirs = 50) {
+    const my = this.dyn(p);
+    const cd = this.dyn(c);
+    if (!cd || c.gentry || c.lowborn) return 0;
+    const gap = cd.prestige - (my?.prestige ?? 0);
+    const myRoyal = this.royalOf(p) != null || p.rulerOf != null;
+    let cost = 0;
+    if (c.rulerOf != null) cost += 20;
+    else if (this.isHeirAnywhere(c)) cost += 15;
+    else if (this.royalOf(c) && !myRoyal) cost += 10;
+    if (gap >= 40) cost += Math.min(25, Math.round(gap * 0.12));
+    if (theirs < 12) cost += Math.ceil((12 - theirs) * 1.2) + 5;
+    return cost ? Math.max(8, cost) : 0;
+  },
+
+  // 縁談の決断をつくる
+  _marriageDecision(p, { proposal = null } = {}) {
+    let offers;
+    if (proposal) {
+      offers = [proposal];
+    } else {
+      const cands = this.marriageCandidates(p);
+      // 恋仲：上位でない候補のひとりが、こちらを慕っていることがある
+      const loveIdx = cands.length >= 3 && this.rng.chance(0.6) ? 2 + this.rng.int(cands.length - 2) : -1;
+      offers = cands.map((o, i) => {
+        const hooks = this.marriageHooks(p, o.c, i === loveIdx);
+        return { id: o.c.id, hooks, cost: this.courtCost(p, o.c, o.theirs) };
+      });
+      // 高嶺の花：ふつうは断ってくる格上の相手。贈り物（家格）を積めば、必ず受けてくれる
+      const reach = this.marriageCandidates(p, 6, { reach: true }).filter((o) => (this.dyn(o.c)?.prestige ?? 0) > (this.dyn(p)?.prestige ?? 0) || o.c.rulerOf != null || this.royalOf(o.c));
+      for (const o of reach.slice(0, 2)) offers.unshift({ id: o.c.id, hooks: this.marriageHooks(p, o.c), cost: this.courtCost(p, o.c, o.theirs), reach: true });
+      // 高嶺の花は 1 枚に 2 人まで（いちばん格上の相手）。ほかはふつうに受けてくれる
+      const pricey = offers.filter((o) => o.cost).sort((a, b) => b.cost - a.cost);
+      for (const o of pricey.slice(2)) if (!o.reach) o.cost = 0;
+      // 贈り物を積む相手は、持参金は出さない
+      for (const o of offers) if (o.cost) o.hooks = o.hooks.filter((h) => h.key !== 'dowry');
+      // 持参金を出すのは、いちばん裕福な家だけ。縁は 1 人 2 つまで
+      const rich = offers.filter((o) => o.hooks.some((h) => h.key === 'dowry')).sort((a, b) => b.hooks.find((h) => h.key === 'dowry').amount - a.hooks.find((h) => h.key === 'dowry').amount);
+      for (const o of rich.slice(1)) o.hooks = o.hooks.filter((h) => h.key !== 'dowry');
+      // 評判の縁も、いちばん目立つ 1 人だけ
+      const famed = offers.filter((o) => o.hooks.some((h) => h.key === 'fame')).sort((a, b) => b.hooks.find((h) => h.key === 'fame').value - a.hooks.find((h) => h.key === 'fame').value);
+      for (const o of famed.slice(1)) o.hooks = o.hooks.filter((h) => h.key !== 'fame');
+      for (const o of offers) o.hooks = o.hooks.slice(0, 2);
+    }
+    this._decision({ type: 'marriage', personId: p.id, candidateIds: offers.map((o) => o.id), offers, proposal: !!proposal });
+  },
+
+  // よその家からの申し込み：こちらを高く買っている家から
+  _marriageProposals() {
+    if (!this.player || this.player.over) return;
+    for (const p of this.living) {
+      if (!p.alive || p.spouseId != null || !this.playerControls(p) || p.imprisoned || p.cloistered) continue;
+      const a = this.age(p);
+      if (a < 16 || a > 45) continue;
+      if (this.player.decisions.some((d) => d.type === 'marriage' && d.personId === p.id)) continue;
+      if (this._askedRecently(`pr${p.id}`, 4) || !this.rng.chance(0.15)) continue;
+      if (this._proposalFor(p)) return;
+    }
+  },
+
+  _proposalFor(p) {
+    {
+      const cands = this.marriageCandidates(p, 8).filter((o) => !o.c.gentry && this.dyn(o.c));
+      if (!cands.length) return false;
+      // 先方がいちばん乗り気な相手
+      const o = cands.sort((x, y) => y.theirs - x.theirs)[0];
+      this.player.asked.set(`pr${p.id}`, this.year);
+      const hooks = this.marriageHooks(p, o.c, this.rng.chance(0.25));
+      // 申し込みには、たいてい手土産がつく
+      if (!hooks.some((h) => h.key === 'dowry')) {
+        const n = 4 + this.rng.int(8);
+        hooks.unshift({ key: 'dowry', icon: '💰', amount: n, text: `申し込みの手土産：家格 +${n}` });
+      }
+      this._marriageDecision(p, { proposal: { id: o.c.id, hooks: hooks.slice(0, 3), cost: 0, from: this.dyn(o.c).id } });
+      return true;
+    }
+  },
+
+  // 縁談を決める。高嶺の花は家格を払う
+  _resolveMarriage(d, p, c, matri) {
+    const offer = (d.offers ?? []).find((o) => o.id === c.id);
+    const hooks = offer?.hooks ?? [];
+    const my = this.dyn(p);
+    if (offer && offer.cost > 0) {
+      if (!my || my.prestige < offer.cost) {
+        // 決断はそのまま残して、選び直せるようにする
+        this.player.decisions.unshift(d);
+        return `家格が足りません（${offer.cost} 要る・いま ${Math.round(my?.prestige ?? 0)}）。`;
+      }
+      my.prestige -= offer.cost;
+    }
+    const love = hooks.some((h) => h.key === 'love');
+    this._wed(p.sex === 'M' ? p : c, p.sex === 'M' ? c : p, false, matri, love);
+    const notes = [];
+    for (const h of hooks) {
+      if (h.key === 'dowry' && my) {
+        my.prestige += h.amount;
+        notes.push(`家格 +${h.amount}`);
+      }
+      if (h.key === 'claim') {
+        c.bloodClaims = [...new Set([...(c.bloodClaims ?? []), h.kingdomId])];
+        notes.push(`子は${this.kingdoms[h.kingdomId].name}の請求権を持つ`);
+      }
+      if (h.key === 'feud') {
+        const cd = this.dyn(c);
+        for (const [x, y] of [[my, cd], [cd, my]]) for (const g of this.grudgesOf(x, y.id)) g.ease *= 0.3;
+        notes.push('因縁が和らいだ');
+      }
+    }
+    const bond = p.bond?.kind;
+    if (bond === 'love') notes.push('ふたりは仲睦まじい');
+    if (bond === 'cold') notes.push('ふたりの仲は冷ややか');
+    if (offer?.cost) notes.unshift(`贈り物に家格 −${offer.cost}`);
+    return `${matri ? `${c.name}を入婿に迎えた` : `${p.name}と${c.name}の縁談がまとまった`}。${notes.join('・')}`;
+  },
+
+  // 申し込みを断る：主君の王家なら王の機嫌をそこねる
+  _declineProposal(d, p) {
+    const c = this.get(d.candidateIds[0]);
+    const cd = c ? this.dyn(c) : null;
+    const my = this.dyn(p);
+    const liege = my ? this.kingdoms[my.kingdomId] : null;
+    if (cd && liege && liege.alive && this.ruler(liege)?.dynastyId === cd.id && my.id !== cd.id) {
+      this._remember(my, -10, '王家の縁談を断った', liege);
+      return `${cd.name}家の申し込みを断った。王は面白くなさそうだ。`;
+    }
+    return cd ? `${cd.name}家の申し込みを断った。` : null;
+  },
+
+  // 夫婦仲：魅力・慈愛・年の差と、めぐりあわせで決まる
+  _bond(h, w, love = false) {
+    let v = (this.rng.next() - 0.5) * 2;
+    v += (this.charm(h) + this.charm(w) - 100) / 80;
+    v += (h.pheno.kindness + w.pheno.kindness - 100) / 120;
+    v -= Math.max(0, Math.abs(this.age(h) - this.age(w)) - 8) / 15;
+    if (h.mad || w.mad) v -= 1;
+    if (love) v += 2;
+    const kind = v > 0.9 ? 'love' : v < -0.7 ? 'cold' : null;
+    h.bond = { with: w.id, kind };
+    w.bond = { with: h.id, kind };
+  },
+
+  // 夫婦仲が子づくりに効く割合
+  bondFertility(w) {
+    const k = w.bond && w.bond.with === w.spouseId ? w.bond.kind : null;
+    return k === 'love' ? 1.25 : k === 'cold' ? 0.7 : 1;
+  },
+
+  bondLabel(p) {
+    const k = p.bond && p.bond.with === p.spouseId ? p.bond.kind : null;
+    return k === 'love' ? '💕 仲睦まじい' : k === 'cold' ? '❄ 冷え切っている' : '';
+  },
+};

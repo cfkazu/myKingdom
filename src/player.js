@@ -85,7 +85,8 @@ export const PlayerMixin = {
   // ───────── 縁談 ─────────
 
   // その人に来ている縁談の候補（相手の家が受けてくれる人だけ）
-  marriageCandidates(p, limit = 5) {
+  // reach なら、ふつうは断ってくる格上の相手（高嶺の花）を探す
+  marriageCandidates(p, limit = 5, { reach = false } = {}) {
     const out = [];
     for (const c of this.living) {
       if (!c.alive || c.sex === p.sex || c.spouseId != null || c === p || c.imprisoned || c.cloistered) continue;
@@ -98,7 +99,7 @@ export const PlayerMixin = {
       const phi = this.ped.kinship(p.id, c.id);
       const mine = this.spouseScore(p, c, phi);
       const theirs = this.spouseScore(c, p, phi);
-      if (mine === -Infinity || theirs < 12) continue;
+      if (mine === -Infinity || (reach ? theirs >= 12 || theirs < -25 : theirs < 12)) continue;
       out.push({ c, mine, theirs, phi });
     }
     out.sort((a, b) => b.mine - a.mine);
@@ -112,6 +113,7 @@ export const PlayerMixin = {
       picked.push(o);
       if (picked.length >= limit) break;
     }
+    if (reach) return picked;
     // 候補が少ないときは、騎士（郷士）の家の子を紹介してもらう
     const k = this.kingdomOf(p);
     const home = this.homeProvince(p) ?? k?.capital ?? 0;
@@ -141,9 +143,10 @@ export const PlayerMixin = {
       if (a < 16) continue;
       if (this.player.decisions.some((d) => d.type === 'marriage' && d.personId === p.id)) continue;
       if (this._askedRecently(`m${p.id}`, 3)) continue;
-      const cands = this.marriageCandidates(p);
       this.player.asked.set(`m${p.id}`, this.year);
-      this._decision({ type: 'marriage', personId: p.id, candidateIds: cands.map((o) => o.c.id) });
+      // ときには、こちらから探す前に先方から申し込みが来る
+      if (this.rng.chance(0.3) && this._proposalFor(p)) continue;
+      this._marriageDecision(p);
     }
   },
 
@@ -173,6 +176,7 @@ export const PlayerMixin = {
     const d = this.player.decisions[i];
     this.player.decisions.splice(i, 1);
     if (d.type === 'event') return this._resolveEvent(d, choice);
+    if (d.type === 'news') return null;
     if (d.type === 'goal') {
       const o = d.options.find((x) => x.key === choice);
       this.setGoal(o ? o.key : null, o ? o.target : null);
@@ -180,7 +184,8 @@ export const PlayerMixin = {
     }
     if (d.type === 'marriage') {
       const p = this.get(d.personId);
-      if (!p.alive || p.spouseId != null || choice === 'later') return null;
+      if (!p.alive || p.spouseId != null) return null;
+      if (choice === 'later') return d.proposal ? this._declineProposal(d, p) : null;
       if (choice === 'lowborn') {
         const k = this.kingdomOf(p);
         const home = this.homeProvince(p) ?? k?.capital ?? 0;
@@ -193,8 +198,7 @@ export const PlayerMixin = {
       const matri = String(choice).startsWith('matri:');
       const c = this.get(Number(String(choice).replace('matri:', '')));
       if (!c || !c.alive || c.spouseId != null) return '相手はもう別の縁談がまとまっていた。';
-      this._wed(p.sex === 'M' ? p : c, p.sex === 'M' ? c : p, false, matri);
-      return matri ? `${c.name}を入婿に迎えた。子は${this.dyn(p).name}家を継ぐ。` : `${p.name}と${c.name}の縁談がまとまった。`;
+      return this._resolveMarriage(d, p, c, matri);
     }
     if (d.type === 'education') {
       const p = this.get(d.personId);
@@ -348,6 +352,7 @@ export const PlayerMixin = {
     const st = this.houseStanding(d);
     if (st.rank > this.player.peak.rank) this.player.peak = st;
     this._playerEducation();
+    this._marriageProposals();
     // 不満な派閥への誘い
     const liege = this.playerLiege();
     if (liege && !this.player.joined && !this._askedRecently(`f${liege.id}`, 8)) {

@@ -1469,3 +1469,57 @@ select:focus-visible {
   height: 100%;
   background: var(--war, var(--bad));
 }
+
+/* 縁談の「縁」 */
+.hooks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.hook {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.hook-love {
+  border-color: #d76a8a;
+  color: #b8426a;
+}
+.hook-claim,
+.hook-dowry {
+  border-color: var(--gold);
+}
+.hook-feud {
+  border-color: var(--good, #3b8a4f);
+}
+.cand-love {
+  box-shadow: inset 3px 0 0 #d76a8a;
+}
+.cand-btns .odds {
+  display: block;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+/* 報せ */
+.news-item {
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.news-item h3 {
+  margin: 0 0 4px;
+}
+.news-item p {
+  margin: 0 0 4px;
+}
+.cand-reach {
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.reach {
+  color: var(--gold);
+  font-weight: 600;
+  margin-bottom: 4px;
+}

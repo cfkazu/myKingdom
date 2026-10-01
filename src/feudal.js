@@ -304,6 +304,7 @@ export const FeudalMixin = {
         pr.holder = null;
         this._remember(target, -50, '領地の没収', k);
         this._grudge(target, this.dyn(r), 'revoke', null, { place: pr.name });
+        this._newsRevoked(target, pr, `${this.pn(r)} が、忠誠の低いあなたの家から取り上げた。`);
         for (const d of this.vassals(k)) if (d !== target) this._remember(d, -8, '王の専横', k);
         const h = this.head(target);
         this.addLog('dynasty', `${this.pn(r)} は ${h ? this.pn(h) : `${target.name}家`} から ${pr.name}伯領 を取り上げた。諸侯は王の専横を恐れている。`, [k.id]);

@@ -91,6 +91,11 @@ export class MapView {
     return { x: (x + 0.2 + 0.6 * hash01(personId * 13)) * CELL, y: (y + 0.2 + 0.6 * hash01(personId * 17)) * CELL };
   }
 
+  // 報せの地方を、しばらく光らせる
+  flash(pids) {
+    this.flashes = { pids: [...new Set(pids)].filter((id) => this.world.provinces[id]), until: performance.now() + 8000 };
+  }
+
   _provinceCenter(pid) {
     const pr = this.world.provinces[pid];
     return { x: (pr.cx + 0.5) * CELL, y: (pr.cy + 0.5) * CELL };
@@ -419,6 +424,18 @@ export class MapView {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.stroke();
+      }
+    }
+
+    // 報せの地方：赤く脈打たせ、名前を出す
+    if (this.flashes && this.flashes.until > now) {
+      const { W } = w.map;
+      const pulse = this.reduced ? 0.35 : 0.25 + 0.2 * (0.5 + 0.5 * Math.sin(now / 160));
+      ctx.fillStyle = `rgba(225,40,40,${pulse})`;
+      for (const pid of this.flashes.pids) for (const i of this.cellsOf[pid] ?? []) ctx.fillRect((i % W) * CELL, Math.floor(i / W) * CELL, CELL, CELL);
+      for (const pid of this.flashes.pids) {
+        const c = this._provinceCenter(pid);
+        this._text(ctx, w.provinces[pid].name, c.x, c.y - 10, 13, '#ffffff');
       }
     }
 

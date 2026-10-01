@@ -237,6 +237,11 @@ class App {
   }
 
   // 鑑定：家格を払って、よその家の人の遺伝子を調べる
+  // 報せの地方を地図で光らせる
+  flashProvinces(pids) {
+    this.map.flash(pids);
+  }
+
   examine(pid) {
     const ok = this.world.examine(this.world.get(pid));
     if (!ok) this.toast('家格が足りません。');

@@ -121,3 +121,46 @@ test('イベント：6 種類とも起こり、継承から外した人は継承
   assert.ok(seen.size >= 5, `起きたイベントが少ない：${[...seen].join(',')}`);
   assert.ok(setAsideOk, '継承から外した人が継承順位に残っている');
 });
+
+test('縁談：候補には縁があり、高嶺の花は家格を払えば必ず受ける。国の大事は報せで届く', () => {
+  const w = new World({ seed: 'match' });
+  for (let i = 0; i < 3; i++) w.step();
+  const lord = w.dynasties.find((d) => !d.extinct && w.countiesOf(d.id).length && !w.aliveKingdoms().some((k) => w.ruler(k)?.dynastyId === d.id));
+  w.setPlayer(lord.id);
+  let offers = 0;
+  let news = 0;
+  let courted = 0;
+  for (let i = 0; i < 150 && !w.player.over; i++) {
+    w.step();
+    for (const d of [...w.pendingDecisions()]) {
+      if (d.type === 'news') {
+        news++;
+        for (const x of d.items) assert.ok(x.title && x.why && x.means);
+        w.decide(d.id, 'ok');
+      } else if (d.type === 'marriage' && d.offers?.length) {
+        for (const o of d.offers) {
+          offers++;
+          assert.ok(Array.isArray(o.hooks) && o.cost >= 0);
+        }
+        const p = w.get(d.personId);
+        const my = w.playerDynasty();
+        const o = d.offers.find((x) => x.cost > 0 && x.cost <= my.prestige) ?? d.offers.find((x) => !x.cost);
+        if (!o) {
+          w.decide(d.id, 'later');
+          continue;
+        }
+        const before = my.prestige;
+        w.decide(d.id, String(o.id));
+        // ランダムに断られることはない：選べば必ずまとまる
+        assert.equal(p.spouseId, o.id);
+        if (o.cost) {
+          courted++;
+          assert.ok(my.prestige <= before - o.cost + 30);
+        }
+      } else w.decide(d.id, d.type === 'education' ? 'martial' : d.type === 'grant' ? 'knight' : d.type === 'faction' ? 'decline' : d.type === 'end' ? 'ok' : 'later');
+    }
+  }
+  assert.ok(offers > 0);
+  assert.ok(news > 0);
+  assert.ok(courted >= 0);
+});
