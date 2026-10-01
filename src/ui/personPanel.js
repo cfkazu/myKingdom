@@ -5,7 +5,7 @@ import { createRng } from '../rng.js';
 import { kinshipLabel } from '../pedigree.js';
 import { portraitSVG } from './portrait.js';
 import { APTITUDES, EXAMINE_COST } from '../goals.js';
-import { esc, personLink, kingdomLink, lifeSpan } from './util.js';
+import { esc, personLink, kingdomLink, lifeSpan, richText } from './util.js';
 
 const bar = (label, v, cls = '', hint = '') => `<span title="${hint}">${label}</span><div class="bar ${cls}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div><span class="v">${Math.round(v)}</span>`;
 
@@ -64,6 +64,7 @@ export class PersonPanel {
     if (!p.alive) {
       const succ = p.rulerOfEver != null ? w.ruler(w.kingdoms[p.rulerOfEver]) : null;
       banner = `<div class="dead-banner">この人は ${p.deathYear} 年に亡くなりました（${esc(p.cause)}）。${succ ? `いまの${esc(w.kingdoms[p.rulerOfEver].name)}の君主は ${personLink(w, succ)}。` : ''}</div>`;
+      if (p.epitaph) banner += `<div class="epitaph">🪦 <b>${esc(w.epitaphHead(p))}</b>。${richText(w, p.epitaph)}。</div>`;
     }
     this.el.innerHTML = `${banner}
       <div class="person-head">
@@ -74,6 +75,7 @@ export class PersonPanel {
           <div class="person-meta">${p.sex === 'M' ? '男性' : '女性'}・${lifeSpan(w, p)}</div>
           <div class="person-meta">${d ? `<a class="plink" data-did="${d.id}">${esc(d.name)}家</a>` : '平民の出'}${k ? `・${kingdomLink(k)}在住` : ''}</div>
           <div class="person-meta">${HAIR_LABEL[ph.hair]}・${EYE_LABEL[ph.eye]}・身長 ${Math.round(ph.height)}cm</div>
+          ${p.epithet && p.epithetWhy ? `<div class="person-meta">「${esc(p.epithet)}」と呼ばれた：${esc(p.epithetWhy)}</div>` : ''}
           <div class="badges">${badges.join('')}</div>
         </div>
       </div>
@@ -88,6 +90,7 @@ export class PersonPanel {
         ${bar('野心', ph.ambition, '', '高い王は戦争を起こし、高い諸侯は反乱を起こし、高い継承者は王を暗殺することも')}
         ${bar('慈愛', ph.kindness, '', '高い王は戦争を好まず、低い王は諸侯から土地を取り上げることがある')}
       </div>
+      ${this._life(w, p)}
       <h3>家族</h3>
       <dl class="kv">
         <dt>父</dt><dd>${personLink(w, father)}</dd>
@@ -117,6 +120,15 @@ export class PersonPanel {
       }
     `;
     if (open && this.el.querySelector('details')) this.el.querySelector('details').open = true;
+  }
+
+  // 生涯：即位・戦・幽閉・復讐などの出来事
+  _life(w, p) {
+    const ds = p.deeds ?? [];
+    if (!ds.length) return '';
+    const rows = ds.map((x) => `<li><span class="muted">${x.year}年（${x.year - p.birthYear}歳）</span> ${esc(x.text)}</li>`);
+    if (!p.alive) rows.push(`<li><span class="muted">${p.deathYear}年（${w.age(p)}歳）</span> ${esc(p.cause)}${p.diedAt ? `（${esc(p.diedAt)}）` : ''}で世を去る</li>`);
+    return `<h3>生涯</h3><ul class="deeds small">${rows.join('')}</ul>`;
   }
 
   // 当主なら、持っている爵位・所領と、王への忠誠

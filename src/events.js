@@ -244,6 +244,7 @@ export const EventsMixin = {
       case 'mad':
         if (choice === 'imprison') {
           setAside(p, 'imprisoned');
+          this._deed(p, 'prison', '狂気のため塔に幽閉される');
           const sp = p.spouseId != null ? this.get(p.spouseId) : null;
           const spd = sp ? this.dyn(sp) : null;
           if (spd && spd !== house && k) this._remember(spd, -15, '身内の幽閉', k);
@@ -286,6 +287,7 @@ export const EventsMixin = {
         }
         if (choice === 'exile') {
           flee();
+          this._deed(p, 'exile', '国外へ追放される');
           log(`${this.pn(p)} は国外へ追放された。`);
           return `${p.name}を国外へ追い出した。`;
         }

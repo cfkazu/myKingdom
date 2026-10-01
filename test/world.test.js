@@ -133,3 +133,25 @@ test('封建制：伯爵領は王領か諸侯の家のもので、公爵は公�
   const homes = new Set(w.living.filter((p) => p.alive).map((p) => w.homeProvince(p)));
   assert.ok(homes.size > w.aliveKingdoms().length * 2, `住んでいる地方が少なすぎる（${homes.size}）`);
 });
+
+test('因縁：処刑された家は仇の王家を恨み、勝てば晴れる。墓碑銘が刻まれる', () => {
+  const w = new World({ seed: 'ledger' });
+  for (let i = 0; i < 5; i++) w.step();
+  const [a, b] = w.dynasties.filter((d) => !d.extinct && w.head(d));
+  const victim = w.head(a);
+  w._grudge(a, b, 'exec', victim);
+  assert.equal(w.grudgesOf(a, b.id).length, 1);
+  assert.ok(w.grudgeAgainst(a, b.id) >= 20);
+  assert.match(w.grudgeText(a, w.grudgesOf(a, b.id)[0]), /処刑された/);
+  // 重い恨みは 200 年たっても残る
+  w.year += 200;
+  assert.ok(w.grudgeAgainst(a, b.id) > 0);
+  w._avenge(a, b);
+  assert.equal(w.grudgesOf(a, b.id).length, 0);
+  w.year -= 200;
+  // 300 年動かすと、王の墓碑銘がある
+  for (let i = 0; i < 150; i++) w.step();
+  const dead = w.kingdoms.flatMap((k) => k.rulers).map((r) => w.get(r.id)).filter((p) => !p.alive && p.epitaph);
+  assert.ok(dead.length > 0);
+  assert.ok(dead.every((p) => /。|、|た$/.test(p.epitaph) || p.epitaph.length > 4));
+});

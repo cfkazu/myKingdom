@@ -397,7 +397,7 @@ export class MapView {
       const y = d.y + (d.rank === 3 ? 0 : wy);
       d.sx = x;
       d.sy = y;
-      const grow = Math.min(1, (now - d.born) / 600);
+      const grow = Math.max(0, Math.min(1, (now - d.born) / 600));
       let r = d.child ? 1.6 : d.rank === 3 ? 4.6 : d.rank === 2 ? 3.3 : d.rank === 1 ? 3 : 2.3;
       r *= 0.4 + 0.6 * grow;
       ctx.beginPath();

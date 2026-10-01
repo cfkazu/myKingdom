@@ -165,6 +165,9 @@ export const FeudalMixin = {
       const left = 1 - (this.year - m.year) / 25;
       if (left > 0) add(m.v * left, m.why);
     }
+    // 因縁：王家への恨みは、何代たっても消えない
+    const gs = this.grudgesOf(d, r.dynastyId);
+    if (gs.length) add(-this.grudgeAgainst(d, r.dynastyId), this.grudgeShort(gs[0]));
     const value = clamp(parts.reduce((s, [v]) => s + v, 0), -100, 100);
     return { value, parts };
   },
@@ -300,6 +303,7 @@ export const FeudalMixin = {
         const pr = this.countiesOf(target.id, k.id).sort((a, b) => b.pop - a.pop)[0];
         pr.holder = null;
         this._remember(target, -50, '領地の没収', k);
+        this._grudge(target, this.dyn(r), 'revoke', null, { place: pr.name });
         for (const d of this.vassals(k)) if (d !== target) this._remember(d, -8, '王の専横', k);
         const h = this.head(target);
         this.addLog('dynasty', `${this.pn(r)} は ${h ? this.pn(h) : `${target.name}家`} から ${pr.name}伯領 を取り上げた。諸侯は王の専横を恐れている。`, [k.id]);
@@ -422,13 +426,16 @@ export const FeudalMixin = {
     const ids = members.map((d) => d.id);
     const provinces = this.provinces.filter((pr) => pr.ownerId === k.id && ids.includes(pr.holder)).map((pr) => pr.id);
     const names = members.map((d) => `${d.name}家`).join('・');
+    const why = this._grudgeNote(members, this.dyn(r));
     if (kind === 'independence') {
       const w = this._startWar('independence', k, k, { leaderId: leader.id, members: ids, provinces, faction: kind });
-      this.addLog('war', `${names} が独立を求めて ${this.pn(r)} に反旗をひるがえした。盟主は ${this.pn(leader)}（${w.name}）。`, [k.id]);
+      this._deed(leader, 'rebel', `${w.name}を率いる`, { war: w.name });
+      this.addLog('war', `${names} が独立を求めて ${this.pn(r)} に反旗をひるがえした。盟主は ${this.pn(leader)}（${w.name}）。${why}`, [k.id]);
     } else {
       const w = this._startWar('civil', k, k, { leaderId: kind === 'claimant' ? this.head(members[0]).id : leader.id, claimantId: kind === 'claimant' ? leader.id : null, members: ids, provinces, faction: kind });
       const goal = kind === 'claimant' ? `${this.pn(leader)} を王位に就けようと` : `${this.pn(leader)} を王にしようと`;
-      this.addLog('war', `${names} が ${goal}、${this.pn(r)} に反旗をひるがえした（${w.name}）。`, [k.id]);
+      this._deed(this.get(w.leaderId), 'rebel', `${w.name}を率いる`, { war: w.name });
+      this.addLog('war', `${names} が ${goal}、${this.pn(r)} に反旗をひるがえした（${w.name}）。${why}`, [k.id]);
     }
   },
 };

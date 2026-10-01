@@ -87,6 +87,7 @@ export class DecisionPanel {
       const phi = w.ped.kinship(p.id, c.id);
       const pr = w.matchPreview(p, c);
       const cd = w.dyn(c);
+      const feud = w.feudBetween(w.dyn(p), cd);
       const ck = w.kingdomOf(c);
       const royal = w.royalOf(c);
       // よその家の人の遺伝子は、鑑定するまでわからない
@@ -126,6 +127,7 @@ export class DecisionPanel {
                 : '・<span class="muted">子の遺伝病：わからない</span>'
           }</div>
           ${genesLine}
+          ${feud ? `<div class="small feud">⚔ 因縁：${richText(w, feud)}。縁組すれば恨みは和らぐ。</div>` : ''}
         </div>
         <div class="cand-btns"><button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">この人と</button>${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿で</button>` : ''}</div>
       </div>`;
@@ -227,6 +229,13 @@ export class DecisionPanel {
     </div>`;
   }
 
+  // あなたが率いた当主たちの墓碑銘
+  _tombs(w, dyn) {
+    const heads = (dyn.heads ?? []).map((id) => w.get(id)).filter((p) => p && !p.alive && p.epitaph && p.deathYear >= w.player.startYear);
+    if (!heads.length) return '';
+    return `<h3>🪦 歴代の当主の墓碑銘</h3><ul class="tombs">${heads.map((p) => `<li><b>${personLink(w, p, { short: true })}${p.epithet ? `「${esc(p.epithet)}」` : ''}</b>（${p.birthYear}〜${p.deathYear}）<div class="small">${richText(w, p.epitaph)}。</div></li>`).join('')}</ul>`;
+  }
+
   _end(w, d) {
     const dyn = w.dynasties[w.player.dynastyId];
     const rulers = w.kingdoms.flatMap((k) => k.rulers.filter((r) => r.dynastyId === dyn.id && r.from >= w.player.startYear).map((r) => `${r.name}${r.epithet ? `「${r.epithet}」` : ''}（${k.name}）`));
@@ -239,6 +248,7 @@ export class DecisionPanel {
         <dt>成し遂げた目標</dt><dd>${ach.length ? ach.map((a) => `${a.icon}${esc(a.label)}（${a.year}年）`).join('、') : 'なし'}</dd>
         <dt>最後の家格</dt><dd>${Math.round(dyn.prestige)}</dd>
       </dl>
+      ${this._tombs(w, dyn)}
       <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="another">別の家で続ける</button><button type="button" data-id="${d.id}" data-choice="ok">このまま歴史を眺める</button></p>
     </div>`;
   }

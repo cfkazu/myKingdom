@@ -288,6 +288,7 @@ export const PlayerMixin = {
     if (!pr) return null;
     pr.holder = null;
     this._remember(d, -50, '領地の没収', k);
+    this._grudge(d, this.playerDynasty(), 'revoke', null, { place: pr.name });
     for (const v of this.vassals(k)) if (v !== d) this._remember(v, -8, '王の専横', k);
     const h = this.head(d);
     this.addLog('dynasty', `${this.pn(this.ruler(k))} は ${h ? this.pn(h) : `${d.name}家`} から ${pr.name}伯領 を取り上げた。`, [k.id]);

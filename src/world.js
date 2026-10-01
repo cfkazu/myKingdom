@@ -14,6 +14,7 @@ import { FeudalMixin, setupFeudal } from './feudal.js';
 import { PlayerMixin } from './player.js';
 import { EventsMixin, isSetAside } from './events.js';
 import { GoalsMixin } from './goals.js';
+import { LedgerMixin } from './ledger.js';
 
 export const ADULT = 16;
 
@@ -519,6 +520,7 @@ export class World {
     this._declareWars();
     this._factions();
     this._housekeeping();
+    this._ledgerTick();
     this._playerTick();
     this._goalTick();
     this._playerEvents();
@@ -599,6 +601,7 @@ export class World {
       if (!p.alive) continue;
       if (p.madOnset != null && !p.mad && this.age(p) >= p.madOnset) {
         p.mad = true;
+        this._deed(p, 'mad', '狂気に陥る');
         const d = this.dyn(p);
         if (p.rulerOf != null) this.addLog('gene', `${this.pn(p)} が狂気に陥った。（狂気の遺伝子 m を両親から 1 つずつ受け継いでいた）`, [p.rulerOf]);
         else if (d && this.head(d) === p) this.addLog('gene', `${d.name}家の当主 ${this.pn(p)} が狂気に陥った。`, [p.kingdomId].filter((x) => x != null));
@@ -657,7 +660,15 @@ export class World {
       this.addLog('gene', `${this.pn(p)} が血友病で亡くなった（${this.age(p)}歳）。${mom ? `血友病の遺伝子は母 ${this.pn(mom)} から受け継いだ。` : ''}`, [this.royalOf(p).id]);
     }
     for (const k of this.kingdoms) if (k.regentId === p.id) k.regentId = null;
-    if (p.rulerOf != null) this._onRulerDeath(this.kingdoms[p.rulerOf], p, cause);
+    if (p.rulerOf != null) {
+      this._onRulerDeath(this.kingdoms[p.rulerOf], p, cause);
+      return;
+    }
+    const ep = this._engrave(p);
+    // あなたの家の当主が亡くなったら、墓碑銘を年代記に
+    const hd = p.wasHead != null ? this.dynasties[p.wasHead] : null;
+    if (ep && hd && hd.headId === p.id && this.player && !this.player.over && hd.id === this.player.dynastyId)
+      this.addLog('death', `${hd.name}家の当主 ${this.pn(p)} が亡くなった（${this.age(p)}歳）。墓碑には「${ep}」と刻まれた。`, [p.kingdomId].filter((x) => x != null));
   }
 
   // ───────── 継承 ─────────
@@ -746,7 +757,8 @@ export class World {
   _onRulerDeath(k, ruler, cause) {
     this._endReign(k, ruler);
     const verb = { 戦死: '戦場で倒れた', 処刑: '処刑された', 暗殺: '暗殺された' }[cause] ?? '崩御した';
-    this.addLog('death', `${this.pn(ruler)} が${verb}（${this.age(ruler)}歳・${cause}）。`, [k.id]);
+    const ep = this._engrave(ruler);
+    this.addLog('death', `${this.pn(ruler)} が${verb}（${this.age(ruler)}歳・${cause}）。${ep ? `墓碑には「${ep}」と刻まれた。` : ''}`, [k.id]);
     const big = this.provincesOf(k).length > this.provinces.length * 0.25;
     this._succeed(k, ruler);
     // 大きな王国では、王の死のたびに王子や王弟が王位をうかがう
@@ -778,27 +790,31 @@ export class World {
     }
   }
 
+  // あだ名と、その由来
   _epithet(p, reign) {
     const len = this.year - reign.from;
     const gained = (reign.provincesEnd ?? 0) - reign.provincesStart;
     const ph = p.pheno;
     const opts = [];
-    if (p.mad) opts.push([100, p.sex === 'M' ? '狂王' : '狂女王']);
-    if (reign.warsWon >= 3 && gained >= 3) opts.push([90, p.sex === 'M' ? '大王' : '大女王']);
-    if (reign.warsWon >= 2 && gained >= 1) opts.push([70, '征服王']);
-    if (gained <= -3) opts.push([65, '失地王']);
-    if (ph.hemophilia) opts.push([60, '病弱王']);
-    if (ph.intellect >= 82) opts.push([55, '賢王']);
-    if (ph.beauty >= 82) opts.push([50, p.sex === 'M' ? '美貌王' : '美貌の女王']);
-    if (ph.jaw) opts.push([45, '顎王']);
-    if (ph.height >= (p.sex === 'M' ? 188 : 176)) opts.push([40, '長身王']);
-    if (ph.kindness >= 82) opts.push([38, '慈悲王']);
-    if (ph.kindness <= 15 && ph.ambition >= 70) opts.push([38, '残酷王']);
-    if (len <= 1) opts.push([35, '短命王']);
-    if (this.age(p) >= 75) opts.push([30, '長命王']);
-    if (len >= 45) opts.push([30, '長治王']);
+    const r = Math.round;
+    if (p.mad) opts.push([100, p.sex === 'M' ? '狂王' : '狂女王', '治世のうちに狂気に陥ったことから']);
+    if (reign.warsWon >= 3 && gained >= 3) opts.push([90, p.sex === 'M' ? '大王' : '大女王', `${reign.warsWon}度の戦に勝ち、国を${gained}地方広げたことから`]);
+    if (reign.warsWon >= 2 && gained >= 1) opts.push([70, '征服王', `${reign.warsWon}度の戦に勝ち、${gained}つの地方を得たことから`]);
+    if (gained <= -3) opts.push([65, '失地王', `治世のうちに${-gained}つの地方を失ったことから`]);
+    if (ph.hemophilia) opts.push([60, '病弱王', '血友病を患っていたことから']);
+    if (ph.intellect >= 82) opts.push([55, '賢王', `知略 ${r(ph.intellect)} の英明さから`]);
+    if (ph.beauty >= 82) opts.push([50, p.sex === 'M' ? '美貌王' : '美貌の女王', `容姿 ${r(ph.beauty)} の美しさから`]);
+    if (ph.jaw) opts.push([45, '顎王', '受け口の顎から（両親から受け口の遺伝子を受け継いだ）']);
+    if (ph.height >= (p.sex === 'M' ? 188 : 176)) opts.push([40, '長身王', `身長 ${r(ph.height)}cm の長身から`]);
+    if (ph.kindness >= 82) opts.push([38, '慈悲王', `慈愛 ${r(ph.kindness)} の情け深さから`]);
+    if (ph.kindness <= 15 && ph.ambition >= 70) opts.push([38, '残酷王', '冷酷で野心的なふるまいから']);
+    if (len <= 1) opts.push([35, '短命王', `わずか ${len} 年で王位を去ったことから`]);
+    if (this.age(p) >= 75) opts.push([30, '長命王', `${this.age(p)}歳まで生きたことから`]);
+    if (len >= 45) opts.push([30, '長治王', `${len}年にわたる治世から`]);
     opts.sort((a, b) => b[0] - a[0]);
-    return opts.length ? opts[0][1] : null;
+    if (!opts.length) return null;
+    p.epithetWhy = opts[0][2];
+    return opts[0][1];
   }
 
   _succeed(k, dead) {
@@ -907,6 +923,7 @@ export class World {
       d.prestige += 20;
     }
     this._fx('crown', k.capital, p.id, true);
+    if (how !== 'init') this._deed(p, 'crown', `${k.name}の${p.sex === 'M' ? '王' : '女王'}となる`);
     k.rulers.push({
       id: p.id,
       name: p.regnal,
@@ -950,6 +967,7 @@ export class World {
       }
     }
     k.regentId = regent ? regent.id : null;
+    if (regent && !(r.deeds ?? []).some((x) => x.kind === 'regency')) this._deed(r, 'regency', `${regent.name}の摂政を受ける`);
     if (regent) this.addLog('succession', `幼い${this.pn(r)} に代わり、${this.pn(regent)} が ${this.kn(k)} の摂政となった。`, [k.id]);
   }
 
@@ -960,6 +978,7 @@ export class World {
       if (!r) continue;
       if (this.age(r) >= ADULT && k.regentId != null) {
         k.regentId = null;
+        this._deed(r, 'adult', '親政を始める');
         this.addLog('succession', `${this.pn(r)} が成人し、親政を始めた。`, [k.id]);
       } else if (this.age(r) < ADULT && k.regentId == null) this._setRegent(k);
     }
@@ -1014,6 +1033,9 @@ export class World {
     if (custom.bloodBonus && s.dynastyId != null && s.dynastyId === c.dynastyId) v += 30 + phi * custom.bloodBonus;
     else if (custom.bloodBonus && sRoyal && cRoyal) v += phi * custom.bloodBonus * 0.6;
     v -= phi * custom.kinPenalty;
+    // 恨んでいる家とは、なかなか縁組しない
+    const sd = this.dyn(s);
+    if (sd && cd && sd.grudges) v -= this.grudgeAgainst(sd, cd.id) * 0.8;
     return v;
   }
 
@@ -1112,13 +1134,14 @@ export class World {
     if (mover.rulerOf == null) mover.kingdomId = stay.kingdomId;
     this._fx('marriage', this.homeProvince(stay), stay.id, m.rulerOf != null || w.rulerOf != null || mHeir || wHeir);
     const phi = this.ped.kinship(m.id, w.id);
+    const eased = this._reconcile(this.dyn(m), this.dyn(w));
     const mk = this.royalOf(m);
     const wk = this.royalOf(w);
     const close = (p, k) => k && (p.rulerOf != null || [p.fatherId, p.motherId].includes(k.rulerId));
     if (!quiet && (close(m, mk) || close(w, wk) || mHeir || wHeir || (mk && wk && mk !== wk))) {
       const rel = phi >= 0.05 ? `（ふたりは${phi >= 0.11 ? '叔父と姪ほど' : 'いとこほど'}近い血縁：血縁係数 ${phi.toFixed(3)}）` : '';
       const al = mk && wk && mk !== wk ? `${this.kn(mk)} と ${this.kn(wk)} の同盟が結ばれた。` : '';
-      this.addLog('marriage', `${this.pn(m)} と ${this.pn(w)} が結婚した${matrilineal ? '（子は妻の家名を継ぐ）' : ''}${rel}。${al}`, [mk?.id, wk?.id].filter((x) => x != null));
+      this.addLog('marriage', `${this.pn(m)} と ${this.pn(w)} が結婚した${matrilineal ? '（子は妻の家名を継ぐ）' : ''}${rel}。${al}${eased ? `${this.dyn(m).name}家と${this.dyn(w).name}家の因縁は、この婚姻で和らいだ。` : ''}`, [mk?.id, wk?.id].filter((x) => x != null));
     }
   }
 
@@ -1375,7 +1398,7 @@ export class World {
           const ratio = myPow / Math.max(1, this.power(t));
           if (this.rng.chance(agg * 2.5 * clamp(ratio, 0.2, 2))) {
             const w = this._startWar('claim', k, t, { claimantId: c.id });
-            this.addLog('war', `${this.pn(r)} は ${c === r ? '自らの' : `${this.pn(c)} の`}${this.kn(t)} 王位への請求権を掲げ、宣戦した（${w.name}）。`, [k.id, t.id]);
+            this.addLog('war', `${this.pn(r)} は ${c === r ? '自らの' : `${this.pn(c)} の`}${this.kn(t)} 王位への請求権を掲げ、宣戦した（${w.name}）。${this._grudgeNote([this.dyn(r)], this.dyn(this.ruler(t)))}`, [k.id, t.id]);
             declared = true;
             break;
           }
@@ -1390,7 +1413,10 @@ export class World {
       let bestRatio = 0;
       for (const t of targets) {
         const tp = this.power(t) + this.alliesOf(t.id).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
-        const ratio = myPow / Math.max(1, tp);
+        // 恨みのある王家の国は、少し不利でも攻めたくなる
+        const tr = this.ruler(t);
+        const g = tr && this.dyn(r) ? this.grudgeAgainst(this.dyn(r), tr.dynastyId) : 0;
+        const ratio = (myPow / Math.max(1, tp)) * (1 + g / 40);
         if (ratio > bestRatio) {
           bestRatio = ratio;
           best = t;
@@ -1398,7 +1424,7 @@ export class World {
       }
       if (best && this.rng.chance(agg * clamp(bestRatio - 0.6, 0, 1.6))) {
         const w = this._startWar('conquest', k, best);
-        this.addLog('war', `${this.pn(r)} が ${this.kn(best)} に宣戦した（${w.name}）。${w.coalition && w.defenderAllies.length ? '強くなりすぎた国を恐れ、諸国が包囲網をつくった。' : ''}${this._alliesText(w)}`, [k.id, best.id]);
+        this.addLog('war', `${this.pn(r)} が ${this.kn(best)} に宣戦した（${w.name}）。${this._grudgeNote([this.dyn(r)], this.dyn(this.ruler(best)))}${w.coalition && w.defenderAllies.length ? '強くなりすぎた国を恐れ、諸国が包囲網をつくった。' : ''}${this._alliesText(w)}`, [k.id, best.id]);
       }
     }
   }
@@ -1525,6 +1551,17 @@ export class World {
       const wc = aWins ? cA : cD;
       this.addLog('war', `${battle.name}：${wc ? `${this.pn(wc)} 率いる` : ''}${aWins ? (civil ? '反乱軍' : this.kn(A)) : this.kn(D)} 軍が大勝した。`, [A.id, D.id]);
     }
+    const wcm = aWins ? cA : cD;
+    if (wcm && margin > 0.2) this._deed(wcm, 'battle', `${battle.name}で勝つ`, { place: battle.name });
+    // 王や指揮官を討たれた家は、討った側の王家（反乱なら盟主の家）を恨む
+    const sideDyn = (onA) => (civil ? (onA ? this.dyn(this.ruler(D)) : this.dyn(this.get(w.leaderId))) : this.dyn(this.ruler(onA ? D : A)));
+    for (const p of dead) {
+      p.diedAt = battle.name;
+      if (p.rulerOf != null || p === cA || p === cD) {
+        const onA = p === cA || (civil ? (w.members ?? []).includes(p.dynastyId) && p.rulerOf == null : p.kingdomId === A.id);
+        this._grudge(this.dyn(p), sideDyn(onA), 'battle', p);
+      }
+    }
     for (const p of dead) {
       const wasRuler = p.rulerOf != null;
       if (!wasRuler && (p === cA || p === cD || this.royalOf(p))) this.addLog('death', `${this.pn(p)} が${battle.name}で戦死した（${this.age(p)}歳）。`, [A.id, D.id]);
@@ -1566,6 +1603,10 @@ export class World {
       lose.lastDefeat = this.year;
       const wr = this.ruler(win);
       if (wr && this.dyn(wr)) this.dyn(wr).prestige += 25;
+      const lr = this.ruler(lose);
+      if (wr) this._deed(wr, 'warWon', `${w.name}に勝つ`);
+      if (lr) this._deed(lr, 'warLost', `${w.name}に敗れる`);
+      if (wr && lr && win.alive && lose.alive) this._avenge(this.dyn(wr), this.dyn(lr), [win.id, lose.id]);
     }
     if (!A.alive || !D.alive) {
       if (reason) this.addLog('war', `${w.name}は${reason}により終わった。`, [A.id, D.id]);
@@ -1576,6 +1617,7 @@ export class World {
       if (result === 'attacker') {
         const n = 1 + Math.floor(Math.max(0, w.score) / 70);
         const taken = this._cede(D, A, n);
+        if (taken.length && this.ruler(D) && this.ruler(A)) this._grudge(this.dyn(this.ruler(D)), this.dyn(this.ruler(A)), 'cede', null, { place: taken.map((p) => p.name).join('・') });
         this.addLog('war', `${w.name}は ${this.kn(A)} の勝利に終わり、${taken.map((p) => p.name).join('・')} を得た。${why}`, [A.id, D.id]);
         // 手柄を立てた指揮官の家に、奪った土地を恩賞として与える
         const hero = this.get(w.battles.filter((b) => b.attackerWon).at(-1)?.cA);
@@ -1596,6 +1638,8 @@ export class World {
         if (old) {
           this._endReign(D, old);
           if (!old.claims.includes(D.id)) old.claims.push(D.id);
+          this._deed(old, 'deposed', '王位を追われる');
+          this._grudge(this.dyn(old), this.dyn(c), 'depose', old);
           this.addLog('war', `${w.name}は ${this.kn(A)} の勝利に終わり、${this.pn(old)} は王位を追われた。`, [A.id, D.id]);
         }
         if (c.rulerOf != null) {
@@ -1614,6 +1658,8 @@ export class World {
   _punishRebels(w, k, why) {
     const leader = this.get(w.leaderId);
     const ld = this.dyn(leader);
+    const kd = this.ruler(k) ? this.dyn(this.ruler(k)) : null;
+    this._avenge(kd, ld, [k.id]);
     if (ld) for (const pr of this.countiesOf(ld.id, k.id)) pr.holder = null;
     for (const id of w.members ?? []) {
       const d = this.dynasties[id];
@@ -1624,9 +1670,14 @@ export class World {
     if (leader.alive) {
       if (this.rng.chance(0.6)) {
         this.addLog('war', `${w.name}は鎮圧された。${this.pn(leader)} は処刑され、${ld ? `${ld.name}家` : ''}の所領は王に没収された。${why}`, [k.id]);
+        this._grudge(ld, kd, 'exec', leader);
         this._kill(leader, '処刑');
         for (const id of w.members ?? []) if (id !== ld?.id) this._remember(this.dynasties[id], -20, '同志の処刑', k);
-      } else this.addLog('war', `${w.name}は鎮圧された。${this.pn(leader)} は幽閉され、${ld ? `${ld.name}家` : ''}の所領は王に没収された。${why}`, [k.id]);
+      } else {
+        this._grudge(ld, kd, 'prison', leader);
+        this._deed(leader, 'prison', '幽閉される');
+        this.addLog('war', `${w.name}は鎮圧された。${this.pn(leader)} は幽閉され、${ld ? `${ld.name}家` : ''}の所領は王に没収された。${why}`, [k.id]);
+      }
     } else this.addLog('war', `${w.name}は鎮圧され、${ld ? `${ld.name}家` : '反乱した家'}の所領は王に没収された。${why}`, [k.id]);
   }
 
@@ -1641,11 +1692,19 @@ export class World {
     }
     const old = this.ruler(D);
     if (old) {
+      const od = this.dyn(old);
+      const nd = this.dyn(newKing) ?? this.dyn(leader);
+      for (const id of w.members ?? []) this._avenge(this.dynasties[id], od, [D.id]);
+      if (nd && !(w.members ?? []).includes(nd.id)) this._avenge(nd, od, [D.id]);
       this._endReign(D, old);
+      this._deed(old, 'deposed', '王位を追われる');
       if (this.rng.chance(0.5)) {
+        this._grudge(od, nd, 'exec', old);
         this.addLog('war', `反乱軍が勝ち、${this.pn(old)} は処刑された。`, [D.id]);
         this._kill(old, '処刑');
       } else {
+        this._grudge(od, nd, 'depose', old);
+        this._deed(old, 'prison', '幽閉される');
         if (!old.claims.includes(D.id)) old.claims.push(D.id);
         this.addLog('war', `反乱軍が勝ち、${this.pn(old)} は幽閉された。`, [D.id]);
       }
@@ -1667,6 +1726,11 @@ export class World {
     if (result !== 'attacker' || !provs.length || !leader.alive) {
       this._punishRebels(w, D, why);
       return;
+    }
+    const dr = this.ruler(D);
+    if (dr) {
+      for (const id of members) this._avenge(this.dynasties[id], this.dyn(dr), [D.id]);
+      this._grudge(this.dyn(dr), this.dyn(leader), 'secede', null, { place: provs.slice(0, 3).map((id) => this.provinces[id].name).join('・') });
     }
     // 戦のあいだに盟主がよその国の君主になっていたら、独立した地方はその国に加わる
     if (leader.rulerOf != null) {
@@ -1730,7 +1794,13 @@ export class World {
   _fall(k, by) {
     const r = this.ruler(k);
     if (r) {
+      const br = this.ruler(by);
+      if (br) {
+        this._avenge(this.dyn(br), this.dyn(r), [k.id, by.id]);
+        this._grudge(this.dyn(r), this.dyn(br), 'fall', r, { place: k.name });
+      }
       this._endReign(k, r);
+      this._deed(r, 'fallen', '国を滅ぼされる');
       if (!r.claims.includes(k.id)) r.claims.push(k.id);
     }
     for (const p of this.living) if (p.alive && p.kingdomId === k.id) p.kingdomId = by.id;
@@ -1863,4 +1933,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin);

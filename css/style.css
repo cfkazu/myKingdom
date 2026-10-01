@@ -1424,3 +1424,48 @@ select:focus-visible {
   color: var(--gene);
   margin: 4px 0 0;
 }
+
+/* 因縁の帳簿・墓碑銘 */
+.epitaph {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--text-3);
+  font-size: 13px;
+  line-height: 1.6;
+  font-style: italic;
+}
+.feud {
+  color: var(--war, var(--bad));
+}
+.deeds,
+.ledger,
+.tombs {
+  margin: 4px 0 10px;
+  padding-left: 0;
+  list-style: none;
+}
+.deeds li,
+.ledger li {
+  padding: 2px 0;
+}
+.tombs li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.feud-bar {
+  display: inline-block;
+  width: 36px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  vertical-align: 1px;
+  overflow: hidden;
+}
+.feud-bar i {
+  display: block;
+  height: 100%;
+  background: var(--war, var(--bad));
+}

@@ -1,7 +1,7 @@
 // 王国パネル：王国の一覧と、選んだ王国の君主・継承順位・歴代の王・戦争。
 
 import { LAWS, CUSTOMS } from '../world.js';
-import { esc, personLink, kingdomLink } from './util.js';
+import { esc, personLink, kingdomLink, richText } from './util.js';
 import { FACTION_LABEL } from '../feudal.js';
 
 const HOW = { inherit: '世襲', elected: '選挙', conquest: '征服', usurp: '簒奪', independence: '独立', init: '世襲' };
@@ -34,7 +34,11 @@ export class RealmPanel {
             ? `<table class="list"><tbody>${targets
                 .map(
                   (t) => `<tr><td>${kingdomLink(t.t)}${t.claimant ? `<div class="small">${personLink(w, t.claimant, { short: true })} の請求権</div>` : '<div class="small muted">国境の地方を奪う</div>'}</td>
-                  <td class="small">兵力の比 <b class="${t.ratio >= 1.2 ? 'good' : t.ratio < 0.8 ? 'bad' : ''}">${t.ratio.toFixed(1)}</b>${w.allied(k.id, t.t.id) ? '<br><span class="bad">同盟国（裏切ると諸侯が怒る）</span>' : ''}</td>
+                  <td class="small">兵力の比 <b class="${t.ratio >= 1.2 ? 'good' : t.ratio < 0.8 ? 'bad' : ''}">${t.ratio.toFixed(1)}</b>${w.allied(k.id, t.t.id) ? '<br><span class="bad">同盟国（裏切ると諸侯が怒る）</span>' : ''}${(() => {
+                    const tr = w.ruler(t.t);
+                    const g = tr ? w.grudgesOf(w.playerDynasty(), tr.dynastyId)[0] : null;
+                    return g ? `<br><span class="feud">⚔ 因縁：${richText(w, w.grudgeText(w.playerDynasty(), g))}</span>` : '';
+                  })()}</td>
                   <td><button type="button" data-war="${t.t.id}" ${t.claimant ? `data-claimant="${t.claimant.id}"` : ''}>${t.claimant ? '継承戦争' : '宣戦'}</button></td></tr>`,
                 )
                 .join('')}</tbody></table>`
