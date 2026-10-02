@@ -46,8 +46,8 @@ export const NewsMixin = {
     const king = this.playerKingdom();
     if (w.kind === 'civil' || w.kind === 'independence') {
       if (!this._isMine(D)) return;
-      // あなたが自分で起こした反乱も同じ
-      if (this.get(w.leaderId)?.dynastyId === pd?.id) return;
+      // あなたが自分で起こした反乱も同じ（派閥に加わっていて始まった反乱は知らせる）
+      if (this._quietNews) return;
       const names = (w.members ?? []).map((id) => `${this.dynasties[id].name}家`).join('・');
       const goal = w.kind === 'independence' ? '国から独立すること' : w.claimantId != null ? `${this.pn(this.get(w.claimantId))} を王に就けること` : `盟主 ${this.pn(this.get(w.leaderId))} が王になること`;
       const means = mineRebel
@@ -159,6 +159,23 @@ export const NewsMixin = {
     const pd = this.playerDynasty();
     if (!pd || to.id !== pd.id || this.playerKingdom()?.id === k.id) return;
     this._news({ icon: '🎁', title: `${pr.name}伯領 を賜った`, body: `${this.pn(this.ruler(k))} が、${why}としてあなたの家に ${pr.name}伯領 を与えた。`, why: '王は、上限を超えた王領や戦で奪った土地を、手柄のあった家・土地の少ない家・忠実な家に与えます。', means: `所領が増え、兵と家の力が増えます。王への忠誠も上がります（+30）。いまの所領：${this.countiesOf(pd.id).map((p) => p.name).join('・')}。`, flashKind: 'gain', pids: [pr.id] });
+  },
+
+  // あなたの家の当主が代わった
+  _newsHeadChange(prev, h, d) {
+    const rel = [h.fatherId, h.motherId].includes(prev.id) ? (prev.sex === 'M' ? '父' : '母') : h.fatherId != null && h.fatherId === prev.fatherId ? 'きょうだい' : [prev.fatherId, prev.motherId].includes(h.id) ? '親' : '一族';
+    const lands = this.countiesOf(d.id);
+    const pk = this.playerKingdom();
+    const age = this.age(h);
+    this._news({
+      icon: '🕯',
+      title: `当主が代わった：${h.regnal ?? h.name}（${age}歳）`,
+      body: `${this.pn(prev)} が${prev.alive ? '退き' : `${prev.deathYear}年に世を去り（${prev.cause}）`}、${rel}にあたる ${this.pn(h)} が${d.name}家を継いだ。${prev.epitaph ? `墓碑には「${prev.epitaph}」と刻まれた。` : ''}`,
+      why: pk ? '王家の当主は、王国の継承法に従って王位とともに継がれます。' : '当主は、家の生きている大人のうち、男系・年長の人が優先されます。継承から外した人は継ぎません。',
+      means: `${age < 16 ? 'まだ幼く、成人まではほかの人が政を行います。' : ''}これからは ${h.name} として決断します。${pk ? `${pk.name}は ${this.provincesOf(pk).length} 地方、王領 ${this.demesneOf(pk).length}。` : lands.length ? `所領（${lands.map((p) => p.name).join('・')}）はそのまま引き継がれます。` : ''}`,
+      flashKind: 'mine',
+      pids: pk ? this.demesneOf(pk).map((p) => p.id) : lands.map((p) => p.id),
+    });
   },
 
   // あなたの家が所領を没収された

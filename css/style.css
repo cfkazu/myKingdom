@@ -1573,3 +1573,8 @@ select:focus-visible {
 .foster-opt {
   gap: 6px;
 }
+
+/* hidden 属性を grid より優先する（「ほかの候補も見る」） */
+.cand[hidden] {
+  display: none;
+}

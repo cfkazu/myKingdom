@@ -164,7 +164,7 @@ export class DecisionPanel {
             known
               ? risks.length
                 ? `・<span class="bad">子の心配：${risks.join('、')}</span>`
-                : '・子の遺伝病の心配はほぼない'
+                : '・子が遺伝病を発症する心配はほぼない'
               : visible.length
                 ? `・<span class="bad">本人が${visible.join('・')}</span>`
                 : '・<span class="muted">子の遺伝病：わからない</span>'

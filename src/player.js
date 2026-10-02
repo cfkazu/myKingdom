@@ -345,7 +345,10 @@ export const PlayerMixin = {
     const h = this.playerHead();
     if (!k || !h || this.activeWars(k.id).some((w) => w.kind === 'civil' || w.kind === 'independence')) return null;
     if (!this.countiesOf(d.id, k.id).length) return null;
+    // 自分で起こした反乱は、報せにしない
+    this._quietNews = true;
     this._rebel(k, kind, h, [d]);
+    this._quietNews = false;
     this.player.joined = null;
     return true;
   },

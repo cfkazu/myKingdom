@@ -35,7 +35,7 @@ export const MatchMixin = {
     // 主君の王家と
     const liege = my ? this.kingdoms[my.kingdomId] : null;
     const lr = liege && liege.alive ? this.ruler(liege) : null;
-    if (lr && lr.dynastyId !== my.id && cd && cd.id === lr.dynastyId) hooks.push({ key: 'liege', icon: '🏰', text: '主君の王家との縁組：王への忠誠が上がる' });
+    if (lr && !this.playerKingdom() && lr.dynastyId !== my.id && cd && cd.id === lr.dynastyId) hooks.push({ key: 'liege', icon: '🏰', text: '主君の王家との縁組：王への忠誠が上がる' });
     // 子宝の実績：前の結婚で子をもうけた人
     const kids = c.children.length;
     if (c.spouses.length && kids >= 2) hooks.push({ key: 'proven', icon: '👶', text: `前の結婚で ${kids} 人の子をもうけた（子宝の実績）` });
@@ -85,9 +85,12 @@ export const MatchMixin = {
         cands.push({ c, mine, theirs: this.spouseScore(c, p, phi), phi });
       }
       // 恋仲：上位でない候補のひとりが、こちらを慕っていることがある
+      // 恋仲は、年の離れすぎていない相手だけ
+      const near = (o) => Math.abs(this.age(o.c) - this.age(p)) <= 12;
       const loveIdx = cands.length >= 3 && this.rng.chance(0.6) ? 2 + this.rng.int(cands.length - 2) : -1;
+      if (loveIdx >= 0 && !near(cands[loveIdx])) cands.loveOff = true;
       offers = cands.map((o, i) => {
-        const hooks = this.marriageHooks(p, o.c, i === loveIdx);
+        const hooks = this.marriageHooks(p, o.c, i === loveIdx && !cands.loveOff);
         return { id: o.c.id, hooks, cost: this.courtCost(p, o.c, o.theirs) };
       });
       // 高嶺の花：ふつうは断ってくる格上の相手。贈り物（家格）を積めば、必ず受けてくれる
@@ -129,7 +132,7 @@ export const MatchMixin = {
       // 先方がいちばん乗り気な相手
       const o = cands.sort((x, y) => y.theirs - x.theirs)[0];
       this.player.asked.set(`pr${p.id}`, this.year);
-      const hooks = this.marriageHooks(p, o.c, this.rng.chance(0.25));
+      const hooks = this.marriageHooks(p, o.c, Math.abs(this.age(o.c) - this.age(p)) <= 12 && this.rng.chance(0.25));
       // 申し込みには、たいてい手土産がつく
       if (!hooks.some((h) => h.key === 'dowry')) {
         const n = 4 + this.rng.int(8);

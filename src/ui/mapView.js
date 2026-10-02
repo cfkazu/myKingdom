@@ -303,7 +303,8 @@ export class MapView {
     }
     // あなたの領地の外周：暗い下地に金の太線
     if (mine.size) {
-      for (const [color, lw] of [['rgba(40,25,5,.55)', 6], ['#f2c94c', 3.4]]) {
+      // 金色の国と並んでも溶けないよう、暗い下地・金・細い白の三重線にする
+      for (const [color, lw] of [['rgba(30,18,4,.75)', 7], ['#f2c94c', 4], ['rgba(255,255,255,.85)', 1.2]]) {
         ctx.strokeStyle = color;
         ctx.lineWidth = lw;
         for (let y = 0; y < H; y++) {
@@ -478,7 +479,8 @@ export class MapView {
       const { W } = w.map;
       const pulse = this.reduced ? 0.5 : 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(now / 160));
       // 失った地方は赤、得た地方・自分の領地は金、そのほかは赤みの橙
-      const rgb = { lost: '220,40,40', gain: '240,190,40', mine: '240,190,40' }[this.flashes.kind] ?? '230,80,30';
+      // 失った地方は赤、得た地方は緑、自分の領地は白っぽい金（金の外周線と見分けるため）
+      const rgb = { lost: '220,40,40', gain: '40,170,80', mine: '255,236,150' }[this.flashes.kind] ?? '230,80,30';
       ctx.fillStyle = `rgba(${rgb},${pulse})`;
       const set = new Set(this.flashes.pids);
       for (const pid of this.flashes.pids) for (const i of this.cellsOf[pid] ?? []) ctx.fillRect((i % W) * CELL, Math.floor(i / W) * CELL, CELL, CELL);

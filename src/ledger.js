@@ -179,6 +179,7 @@ export const LedgerMixin = {
       if (d.heads.length > 40) d.heads.shift();
       h.wasHead = h.wasHead ?? d.id;
       if (prev) this._deed(h, 'head', `${d.name}家の当主となる`);
+      if (prev && this.player && !this.player.over && d.id === this.player.dynastyId) this._newsHeadChange(prev, h, d);
     }
   },
 
