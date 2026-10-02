@@ -19,6 +19,7 @@ export const MatchMixin = {
     const hooks = [];
     const my = this.dyn(p);
     const cd = this.dyn(c);
+    if ((p.friendIds ?? []).includes(c.id) || (c.friendIds ?? []).includes(p.id)) hooks.push({ key: 'friend', icon: '🤝', text: `幼なじみ：同じ宮廷でともに育った。夫婦仲が良くなりやすい` });
     if (love) hooks.push({ key: 'love', icon: '💕', text: `${c.name}は${p.name}を慕っている。夫婦仲が良くなり、子に恵まれやすい` });
     // 王位の血：よその国の君主の子・君主本人・請求権を持つ人
     const ck = c.rulerOf != null ? this.kingdoms[c.rulerOf] : this.kingdoms.find((k) => k.alive && k.rulerId != null && (c.fatherId === k.rulerId || c.motherId === k.rulerId));
@@ -72,6 +73,17 @@ export const MatchMixin = {
       offers = [proposal];
     } else {
       const cands = this.marriageCandidates(p);
+      // 幼なじみは、ふさわしい相手なら候補にまじる
+      for (const id of p.friendIds ?? []) {
+        const c = this.get(id);
+        if (!c || !c.alive || c.spouseId != null || c.sex === p.sex || cands.some((o) => o.c === c)) continue;
+        const ca = this.age(c);
+        if (c.sex === 'F' ? ca < 15 || ca > 40 : ca < 16 || ca > 62) continue;
+        const phi = this.ped.kinship(p.id, c.id);
+        const mine = this.spouseScore(p, c, phi);
+        if (mine === -Infinity) continue;
+        cands.push({ c, mine, theirs: this.spouseScore(c, p, phi), phi });
+      }
       // 恋仲：上位でない候補のひとりが、こちらを慕っていることがある
       const loveIdx = cands.length >= 3 && this.rng.chance(0.6) ? 2 + this.rng.int(cands.length - 2) : -1;
       offers = cands.map((o, i) => {
@@ -141,7 +153,7 @@ export const MatchMixin = {
       }
       my.prestige -= offer.cost;
     }
-    const love = hooks.some((h) => h.key === 'love');
+    const love = hooks.some((h) => h.key === 'love' || h.key === 'friend');
     this._wed(p.sex === 'M' ? p : c, p.sex === 'M' ? c : p, false, matri, love);
     const notes = [];
     for (const h of hooks) {

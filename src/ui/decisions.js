@@ -3,6 +3,7 @@
 
 import { EDUCATION } from '../player.js';
 import { APTITUDES, EXAMINE_COST, GOALS } from '../goals.js';
+import { TRAIT_LABEL } from '../fostering.js';
 import { LOCUS } from '../genes.js';
 import { HAIR_LABEL, EYE_LABEL } from '../genes.js';
 import { kinshipLabel } from '../pedigree.js';
@@ -48,8 +49,8 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d) }[d.type]();
-    const label = { news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d) }[d.type]();
+    const label = { news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
@@ -152,7 +153,7 @@ export class DecisionPanel {
       if (c.gentry) perks.push('騎士の家の出（家格は低いが、新しい血を入れられる）');
       if (w.isHeirAnywhere(c)) perks.push('王位継承者');
       if (cd && w.houseTitle(cd)) perks.push(w.houseTitle(cd));
-      return `<div class="cand${hooks.some((h) => h.key === 'love') ? ' cand-love' : ''}${cost ? ' cand-reach' : ''}"${idx >= 3 && !cost && !hooks.some((h) => h.key === 'love') && !this.showAll?.has(d.id) ? ' hidden' : ''}>
+      return `<div class="cand${hooks.some((h) => h.key === 'love') ? ' cand-love' : ''}${cost ? ' cand-reach' : ''}"${idx >= 3 && !cost && !hooks.some((h) => h.key === 'love' || h.key === 'friend') && !this.showAll?.has(d.id) ? ' hidden' : ''}>
         ${portraitSVG(w, c, 64)}
         <div class="cand-body">
           ${cost ? `<div class="small reach">🌹 高嶺の花：ふつうなら断ってくる格上の相手。贈り物（家格 −${cost}）を積めば受けてくれる</div>` : ''}
@@ -181,6 +182,36 @@ export class DecisionPanel {
       <div class="cands">${cards.join('') || '<p class="small">ふさわしい相手が見つかりません。</p>'}</div>
       ${cards.filter((c) => c.includes(' hidden>')).length ? `<p><button type="button" class="small" data-more="${d.id}">ほかの候補も見る（あと ${cards.filter((c) => c.includes(' hidden>')).length} 人）</button></p>` : ''}
       <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">今は見送る（数年後にまた）</button>`}</p>
+    </div>`;
+  }
+
+  // ───────── 養育先 ─────────
+
+  _foster(w, d) {
+    const p = w.get(d.personId);
+    const apt = APTITUDES.map((a) => {
+      const v = w.aptitude(p, a.trait);
+      return `${a.label} ＋${v.plus}/${v.copies}`;
+    }).join('・');
+    const pts = (g) =>
+      w
+        .fosterPoints(g)
+        .map(([t, v]) => `<span class="${v > 0 ? (t === 'ambition' ? '' : 'good') : t === 'ambition' ? 'good' : 'bad'}">${TRAIT_LABEL[t]} ${v > 0 ? '+' : '−'}${Math.abs(v)}</span>`)
+        .join('・');
+    const opts = d.options
+      .map((o) => {
+        const t = o.tutorId != null ? w.get(o.tutorId) : null;
+        const td = t ? w.dyn(t) : null;
+        return `<button type="button" class="opt foster-opt" data-id="${d.id}" data-choice="${o.key}">
+          <span class="foster-head">${t ? portraitSVG(w, t, 40) : ''}<span><b>${o.icon} ${esc(o.label)}</b>${t ? `<span class="small">後見人：${esc(t.regnal ?? t.name)}${td ? `（${esc(td.name)}家）` : ''}・${w.age(t)}歳<br>指揮 ${Math.round(w.martial(t))}・知略 ${Math.round(t.pheno.intellect)}・カリスマ ${Math.round(t.pheno.charisma)}・慈愛 ${Math.round(t.pheno.kindness)}・野心 ${Math.round(t.pheno.ambition)}</span>` : ''}</span></span>
+          <span class="small">育ちの見込み：${pts(o.gains) || 'ほとんど変わらない'}</span>
+          <span class="small muted">${esc(o.side)}</span></button>`;
+      })
+      .join('');
+    return `<div class="decision">
+      <div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">🏡 養育先</div><h2>${w.houseHeir(w.playerDynasty()) === p ? "跡継ぎの " : ""}${esc(p.name)}（6歳）を、どこで育てますか？</h2>
+      <p class="small muted">子は後見人の得意から学び、気性も後見人に似ます。16 歳で成人すると、育ちの結果が報せで届きます。子に伝わるのは生まれ持った素質（${esc(apt)}）のほうで、育ちは伝わりません。</p>${this._goalHint(w)}</div></div>
+      <div class="opts">${opts}</div>
     </div>`;
   }
 

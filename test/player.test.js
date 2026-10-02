@@ -30,7 +30,7 @@ test("遊ぶ家：当主と子の縁談と教育はプレイヤーが決め、AI
   const d = w.dynasties.find((x) => w.houseRank(x) === "count");
   w.setPlayer(d.id);
   let aiMarriedChild = 0;
-  const seen = { marriage: 0, education: 0 };
+  const seen = { marriage: 0, foster: 0 };
   for (let i = 0; i < 80; i++) {
     const before = new Map(
       w.living
@@ -47,7 +47,7 @@ test("遊ぶ家：当主と子の縁談と教育はプレイヤーが決め、AI
     }
     for (const x of [...w.pendingDecisions()]) {
       if (x.type in seen) seen[x.type]++;
-      w.decide(x.id, x.type === "education" ? "martial" : "later");
+      w.decide(x.id, x.type === "foster" ? "general" : "later");
     }
     if (w.player.over) break;
   }
@@ -57,16 +57,17 @@ test("遊ぶ家：当主と子の縁談と教育はプレイヤーが決め、AI
     "プレイヤーが選んでいないのに結婚した近親がいる",
   );
   assert.ok(seen.marriage > 0, "縁談の決断が来ない");
-  assert.ok(seen.education > 0, "教育の決断が来ない");
+  assert.ok(seen.foster > 0, "養育先の決断が来ない");
 });
 
-test("縁談を選ぶと結婚し、教育は能力を伸ばす", () => {
+test("縁談を選ぶと結婚し、跡継ぎは養育先で育ち、16 歳で成人の報せが届く", () => {
   const w = new World({ seed: "player-b" });
   const k = w.aliveKingdoms()[0];
   w.setPlayer(w.ruler(k).dynastyId);
   let married = false;
-  let educated = null;
-  for (let i = 0; i < 120 && !(married && educated); i++) {
+  let fostered = null;
+  let grown = false;
+  for (let i = 0; i < 160 && !(married && grown); i++) {
     w.step();
     for (const d of [...w.pendingDecisions()]) {
       if (d.type === "marriage" && d.candidateIds.length && !married) {
@@ -74,26 +75,25 @@ test("縁談を選ぶと結婚し、教育は能力を伸ばす", () => {
         const c = w.get(d.candidateIds[0]);
         w.decide(d.id, String(c.id));
         if (p.spouseId === c.id) married = true;
-      } else if (d.type === "education" && !educated) {
-        const p = w.get(d.personId);
-        const before = p.pheno.intellect;
-        w.decide(d.id, "learning");
-        educated = p.pheno.intellect - before;
+      } else if (d.type === "foster" && !fostered) {
+        assert.ok(d.options.some((o) => o.key === "home") && d.options.some((o) => o.key === "cloister"));
+        const o = d.options.find((x) => x.key === "sage") ?? d.options[0];
+        w.decide(d.id, o.key);
+        fostered = w.get(d.personId);
+        assert.equal(fostered.foster.key, o.key);
+      } else if (d.type === "news") {
+        if (fostered && d.items.some((x) => x.icon === "🎓" && x.title.includes(fostered.name))) grown = true;
+        w.decide(d.id, "ok");
       } else
-        w.decide(
-          d.id,
-          d.type === "education"
-            ? "martial"
-            : d.type === "grant"
-              ? "knight"
-              : d.type === "faction"
-                ? "decline"
-                : "later",
-        );
+        w.decide(d.id, d.type === "grant" ? "knight" : d.type === "faction" ? "decline" : "later");
     }
   }
   assert.ok(married, "選んだ相手と結婚しなかった");
-  assert.ok(educated > 5, `学問で知略が伸びない（${educated}）`);
+  assert.ok(fostered, "養育先の決断が来ない");
+  if (fostered.alive && w.age(fostered) >= 16) {
+    assert.ok(fostered.foster.done, "16 歳で成人しない");
+    assert.ok(grown, "成人の報せが来ない");
+  }
 });
 
 test("王として宣戦でき、AI はプレイヤーの国の代わりに宣戦しない", () => {
@@ -210,9 +210,11 @@ test("縁談：候補には縁があり、高嶺の花は家格を払えば必�
             continue;
           }
           const before = my.prestige;
+          const taken = w.get(o.id).spouseId != null;
           w.decide(d.id, String(o.id));
-          // ランダムに断られることはない：選べば必ずまとまる
-          assert.equal(p.spouseId, o.id);
+          // ランダムに断られることはない：選べば必ずまとまる（相手がもう結婚していたら選び直し）
+          if (taken) assert.ok(w.pendingDecisions().some((x) => x.type === "marriage" && x.personId === p.id));
+          else assert.equal(p.spouseId, o.id);
           if (o.cost) {
             courted++;
             assert.ok(my.prestige <= before - o.cost + 30);

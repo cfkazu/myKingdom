@@ -198,8 +198,20 @@ export const PlayerMixin = {
       }
       const matri = String(choice).startsWith('matri:');
       const c = this.get(Number(String(choice).replace('matri:', '')));
-      if (!c || !c.alive || c.spouseId != null) return '相手はもう別の縁談がまとまっていた。';
+      if (!c || !c.alive || c.spouseId != null) {
+        // ほかの候補から選び直せるように、縁談をもう一度出す
+        this._marriageDecision(p);
+        return `${c ? c.name : '相手'}はもう別の縁談がまとまっていた。ほかの候補から選び直せます。`;
+      }
       return this._resolveMarriage(d, p, c, matri);
+    }
+    if (d.type === 'foster') {
+      const p = this.get(d.personId);
+      if (!p.alive) return null;
+      const o = d.options.find((x) => x.key === choice) ?? d.options.find((x) => x.key === 'home') ?? d.options[0];
+      this._setFoster(p, o);
+      const t = o.tutorId != null ? this.get(o.tutorId) : null;
+      return `${p.name}は${o.key === 'cloister' ? '修道院で' : o.key === 'home' ? '家で' : `${t.name}のもとで`}育つことになった。16 歳で成人したら報せが届きます。`;
     }
     if (d.type === 'education') {
       const p = this.get(d.personId);
@@ -352,7 +364,7 @@ export const PlayerMixin = {
     }
     const st = this.houseStanding(d);
     if (st.rank > this.player.peak.rank) this.player.peak = st;
-    this._playerEducation();
+    this._playerFostering();
     this._marriageProposals();
     // 不満な派閥への誘い
     const liege = this.playerLiege();

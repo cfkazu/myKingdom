@@ -1554,3 +1554,22 @@ select:focus-visible {
 .chip-btn:hover {
   background: color-mix(in srgb, #f2c94c 40%, var(--surface));
 }
+
+/* 養育先 */
+.foster-opt .foster-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.foster-opt .foster-head svg {
+  flex: none;
+}
+.foster-opt .foster-head > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.foster-opt {
+  gap: 6px;
+}

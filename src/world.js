@@ -17,6 +17,7 @@ import { GoalsMixin } from './goals.js';
 import { LedgerMixin } from './ledger.js';
 import { MatchMixin } from './matchmaking.js';
 import { NewsMixin } from './news.js';
+import { FosterMixin } from './fostering.js';
 
 export const ADULT = 16;
 
@@ -527,6 +528,7 @@ export class World {
     this._playerTick();
     this._goalTick();
     this._playerEvents();
+    this._fosterTick();
     this._flushNews();
     this._record();
   }
@@ -1954,4 +1956,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin);
