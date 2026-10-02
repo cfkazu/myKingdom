@@ -304,6 +304,7 @@ export const FeudalMixin = {
         pr.holder = null;
         this._remember(target, -50, '領地の没収', k);
         this._grudge(target, this.dyn(r), 'revoke', null, { place: pr.name });
+        if (this.head(target)) this._deed(this.head(target), 'revoked', `${pr.name}伯領を王に取り上げられる`, { place: pr.name });
         this._newsRevoked(target, pr, `${this.pn(r)} が、忠誠の低いあなたの家から取り上げた。`);
         for (const d of this.vassals(k)) if (d !== target) this._remember(d, -8, '王の専横', k);
         const h = this.head(target);
@@ -313,7 +314,7 @@ export const FeudalMixin = {
   },
 
   // 恩賞：伯爵領を家に与える。to が null なら、ふさわしい家を王が選ぶ（いなければ新しい家を興す）
-  _grant(k, pr, to, why = '恩賞') {
+  _grant(k, pr, to, why = '恩賞', { knight = false } = {}) {
     const r = this.ruler(k);
     if (!to) {
       const cands = this.dynasties.filter((d) => !d.extinct && d.kingdomId === k.id && d.id !== r?.dynastyId && this.head(d) && this.age(this.head(d)) >= 16);
@@ -331,7 +332,7 @@ export const FeudalMixin = {
           best = d;
         }
       }
-      if (!best || (bestS < 0 && this.rng.chance(0.5))) {
+      if (knight || !best || (bestS < 0 && this.rng.chance(0.5))) {
         const head = this._raiseHouse(k, pr.id, true);
         best = this.dyn(head);
         pr.holder = best.id;
@@ -345,6 +346,8 @@ export const FeudalMixin = {
     this._remember(to, 30, why, k);
     const h = this.head(to);
     if (h && r) this.addLog('dynasty', `${this.pn(r)} は ${why}として ${pr.name}伯領 を ${this.pn(h)}（${to.name}家）に与えた。`, [k.id]);
+    this._newsGrant(to, pr, why, k);
+    if (h) this._deed(h, 'grant', `${pr.name}伯領を賜る`, { place: pr.name });
     return to;
   },
 

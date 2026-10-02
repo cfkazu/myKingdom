@@ -8,6 +8,7 @@
 
 import { express, predictOffspring } from './genes.js';
 import { createRng } from './rng.js';
+import { isSetAside } from './events.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -155,7 +156,7 @@ export const PlayerMixin = {
   _playerEducation() {
     const d = this.playerDynasty();
     for (const p of this.living) {
-      if (!p.alive || p.dynastyId !== d.id || this.age(p) !== 6 || p.education) continue;
+      if (!p.alive || p.dynastyId !== d.id || this.age(p) !== 6 || p.education || isSetAside(p)) continue;
       if (!this.playerControls(p)) continue;
       this._decision({ type: 'education', personId: p.id });
     }
@@ -217,7 +218,7 @@ export const PlayerMixin = {
         return `${pr.name}伯領は王領にとどめた。諸侯は少し不満げだ。`;
       }
       if (choice === 'knight') {
-        this._grant(k, pr, null);
+        this._grant(k, pr, null, '恩賞', { knight: true });
         return null;
       }
       this._grant(k, pr, this.dynasties[Number(choice)]);

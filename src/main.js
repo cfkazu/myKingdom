@@ -66,6 +66,13 @@ class App {
   }
 
   _bind() {
+    // 地方の名前のボタン：地図でその地方を光らせる（決断カードの中はカードの側で受ける）
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-flash]');
+      if (!b || b.closest('#decision')) return;
+      this.flashProvinces(b.dataset.flash.split(',').filter(Boolean).map(Number), b.dataset.flashKind ?? 'mine');
+      $('#map')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
     $('#btn-play').addEventListener('click', () => this.setPlaying(!this.playing));
     $('#btn-step').addEventListener('click', () => this.advance(1));
     $('#btn-step10').addEventListener('click', () => this.advance(10));
@@ -238,8 +245,8 @@ class App {
 
   // 鑑定：家格を払って、よその家の人の遺伝子を調べる
   // 報せの地方を地図で光らせる
-  flashProvinces(pids) {
-    this.map.flash(pids);
+  flashProvinces(pids, kind = 'news') {
+    this.map.flash(pids, kind);
   }
 
   examine(pid) {
@@ -308,13 +315,24 @@ class App {
     this.showTab('person');
   }
 
+  // あなたの領地：名前を押すと地図で光る
+  _landsBar(w, d) {
+    if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
+    const mine = [...this.map.myProvinces()].map((id) => w.provinces[id]);
+    if (!mine.length) return '';
+    const pk = w.playerKingdom();
+    const label = (pr) => `${pr.name}${pk && pr.id === pk.capital ? '♛' : pr.id === d.homeProvinceId ? '🏰' : ''}`;
+    const duchies = w.duchies.filter((du) => w.duchyHolderDyn(du) === d.id);
+    return `<div class="lands-bar small">🗺️ <b>あなたの領地 ${mine.length}</b>${duchies.length ? `（${duchies.map((du) => `${du.name}公領`).join('・')}）` : ''}：<button type="button" class="small" data-flash="${mine.map((pr) => pr.id).join(',')}" data-flash-kind="mine">すべて光らせる</button>${mine.map((pr) => `<button type="button" class="chip-btn" data-flash="${pr.id}" data-flash-kind="mine">${pr.name ? label(pr) : ''}</button>`).join('')}</div>`;
+  }
+
   _goalBar(w, d) {
     if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
     const g = w.goalProgress();
     const ach = (w.player.achievements ?? []).map((x) => x.icon).join('');
     if (!g) return `<div class="goal-bar small">🎯 目標なし ${ach}<button type="button" class="small" data-goal="1">目標を選ぶ</button></div>`;
     const bar = g.ratio != null ? `<span class="goal-meter"><i style="width:${Math.round(g.ratio * 100)}%"></i></span>` : '';
-    return `<div class="goal-bar small">${g.icon} <b>${g.label}</b>：${g.text} ${bar}${g.met ? `<span class="good">達成中（${g.held}/${g.hold} 年）</span>` : ''} ${ach}<button type="button" class="small" data-goal="1">目標を変える</button></div>`;
+    return `<div class="goal-bar small">${g.icon} <b>${g.label}</b>：${g.text} ${bar}${g.met ? `<span class="good">目標ラインに到達！あと ${g.hold - g.held} 年保てば達成</span>` : ''} ${ach}<button type="button" class="small" data-goal="1">目標を変える</button></div>`;
   }
 
   renderFollowBar() {
@@ -333,7 +351,7 @@ class App {
       el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
       return;
     }
-    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._goalBar(w, d)}${
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._landsBar(w, d)}${this._goalBar(w, d)}${
       w.player && w.player.dynastyId === d.id && !w.player.over && w.houseStanding(d).rank === 0
         ? '<div class="small hint">⚠️ あなたの家は所領を失いました。王家や大きな家との縁談で請求権や同盟を得るか、家タブから別の家に乗り換えましょう。</div>'
         : ''

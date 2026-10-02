@@ -207,6 +207,11 @@ export const LedgerMixin = {
     const rebel = has('rebel');
     if (rebel) add(75, `${rebel.war}を起こし`);
     if (has('battle') && !reign) add(45, `${has('battle').place}で勝ち`);
+    const m = deeds.find((x) => x.kind === 'match' && x.tag);
+    if (m) add(48, `${m.tag}${m.name}と結ばれ`);
+    if (has('grant')) add(52, `${has('grant').place}伯領を賜り`);
+    if (has('revoked')) add(72, `${has('revoked').place}伯領を王に奪われ`);
+    if (has('goal')) add(82, `「${has('goal').label}」を成し遂げ`);
     if (has('avenge')) add(85, `${has('avenge').years}年来の恨みを晴らし`);
     if (has('deposed')) add(88, '王位を追われ');
     if (has('fallen')) add(89, '国を滅ぼされ');

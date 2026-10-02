@@ -114,7 +114,7 @@ export const NewsMixin = {
   _newsTransfer(pr, from, to, holder) {
     const pd = this.playerDynasty();
     if (holder != null && pd && holder === pd.id) {
-      this._news({ icon: '🏚', title: `あなたの家の ${pr.name}伯領 を失った`, body: `${pr.name} は ${this.kn(to)} に割譲され、新しい王の王領になった。`, why: '戦に負けた国は、国境の地方を勝った国に割譲します。そこを治めていた家は土地を失います。', means: '所領が減ると兵も家の力も減ります。王への恨みも少し残ります。', pids: [pr.id] });
+      this._news({ flashKind: 'lost', icon: '🏚', title: `あなたの家の ${pr.name}伯領 を失った`, body: `${pr.name} は ${this.kn(to)} に割譲され、新しい王の王領になった。`, why: '戦に負けた国は、国境の地方を勝った国に割譲します。そこを治めていた家は土地を失います。', means: '所領が減ると兵も家の力も減ります。王への恨みも少し残ります。', pids: [pr.id] });
       return;
     }
     if (this._isMine(from)) {
@@ -125,7 +125,8 @@ export const NewsMixin = {
         body: `${pr.name} が ${this.kn(to)} のものになった。`,
         merge: (pids) => `${pids.map((id) => this.provinces[id].name).join('・')} が ${this.kn(to)} のものになった。`,
         why: '負け戦の割譲、または国の滅亡で、地方は勝った国に移ります。',
-        means: '国の兵力と税が減ります。地図で赤く光る地方です。',
+        means: this._myLandsNote(),
+        flashKind: 'lost',
         pids: [pr.id],
       });
     } else if (this._isMine(to)) {
@@ -136,17 +137,35 @@ export const NewsMixin = {
         body: `${pr.name} を ${from ? this.kn(from) : 'よそ'} から得た。`,
         merge: (pids) => `${pids.map((id) => this.provinces[id].name).join('・')} を ${from ? this.kn(from) : 'よそ'} から得た。`,
         why: '勝ち戦の割譲です。',
-        means: '奪った地方はまず王領になり、恩賞として諸侯に与えられることもあります。',
+        means: `奪った地方はまず王領になり、恩賞として諸侯に与えられることもあります。${this._myLandsNote()}`,
+        flashKind: 'gain',
         pids: [pr.id],
       });
     }
+  },
+
+  // 「あなたには」に添える、自分の領地のいま
+  _myLandsNote() {
+    const pd = this.playerDynasty();
+    if (!pd) return '';
+    const pk = this.playerKingdom();
+    if (pk) return `国は ${this.provincesOf(pk).length} 地方、うち王領は ${this.demesneOf(pk).length}。`;
+    const cs = this.countiesOf(pd.id);
+    return cs.length ? `あなたの家の所領（${cs.map((pr) => pr.name).join('・')}）は無事です。国の兵力は減ります。` : 'あなたの家は所領を持っていません。';
+  },
+
+  // あなたの家が恩賞で伯爵領を得た（王がほかの家のとき）
+  _newsGrant(to, pr, why, k) {
+    const pd = this.playerDynasty();
+    if (!pd || to.id !== pd.id || this.playerKingdom()?.id === k.id) return;
+    this._news({ icon: '🎁', title: `${pr.name}伯領 を賜った`, body: `${this.pn(this.ruler(k))} が、${why}としてあなたの家に ${pr.name}伯領 を与えた。`, why: '王は、上限を超えた王領や戦で奪った土地を、手柄のあった家・土地の少ない家・忠実な家に与えます。', means: `所領が増え、兵と家の力が増えます。王への忠誠も上がります（+30）。いまの所領：${this.countiesOf(pd.id).map((p) => p.name).join('・')}。`, flashKind: 'gain', pids: [pr.id] });
   },
 
   // あなたの家が所領を没収された
   _newsRevoked(d, pr, why) {
     const pd = this.playerDynasty();
     if (!pd || d.id !== pd.id) return;
-    this._news({ icon: '⛓', title: `${pr.name}伯領 を王に取り上げられた`, body: why, why: '野心的で冷酷な王は、忠誠の低い家から土地を取り上げます。反乱に負けた盟主の家は所領を没収されます。', means: 'この恨みは家に残り、王家への忠誠を長く下げます。', pids: [pr.id] });
+    this._news({ icon: '⛓', title: `${pr.name}伯領 を王に取り上げられた`, body: why, why: '野心的で冷酷な王は、忠誠の低い家から土地を取り上げます。反乱に負けた盟主の家は所領を没収されます。', means: `この恨みは家に残り、王家への忠誠を長く下げます。残る所領：${this.countiesOf(pd.id).filter((p) => p !== pr).map((p) => p.name).join('・') || 'なし'}。`, flashKind: 'lost', pids: [pr.id] });
   },
 
   // あなたの国の王が替わった（王朝が替わったとき）
@@ -160,6 +179,10 @@ export const NewsMixin = {
   },
 
   _newsFall(k, by) {
+    if (this._isMine(by)) {
+      this._news({ icon: '🏆', title: `${k.name}を滅ぼした`, body: `${this.kn(k)} の最後の地方を奪い、国は滅んだ。`, why: '地方をすべて失った国は滅びます。', means: '滅んだ国の王家は請求権を持ち、いつか取り戻しに来るかもしれません。その地方の民は、しばらくあなたの国に馴染みません（独立の派閥ができやすい）。', pids: [] });
+      return;
+    }
     if (!this._isMine(k)) return;
     this._news({ icon: '🏳', title: `${k.name}は滅んだ`, body: `最後の地方を ${this.kn(by)} に奪われた。`, why: '戦に負け続けて地方をすべて失うと、国は滅びます。', means: 'あなたの家はこれから勝った国に仕えます。滅んだ国の王家は請求権を持ち、いつか再興を狙えます。', pids: [] });
   },

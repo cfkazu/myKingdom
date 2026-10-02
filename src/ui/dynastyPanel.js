@@ -81,7 +81,7 @@ export class DynastyPanel {
         ${parent ? `<dt>本家</dt><dd>${esc(parent.name)}家</dd>` : ''}
         <dt>家格</dt><dd>${Math.round(d.prestige)}</dd>
         <dt>爵位</dt><dd>${esc(w.houseTitle(d) ?? (d.extinct ? '—' : '無領'))}</dd>
-        ${w.countiesOf(d.id).length ? `<dt>所領</dt><dd>${w.countiesOf(d.id).map((pr) => `${esc(pr.name)}伯領`).join('・')}</dd>` : ''}
+        ${w.countiesOf(d.id).length ? `<dt>所領</dt><dd>${w.countiesOf(d.id).map((pr) => `<button type="button" class="chip-btn" data-flash="${pr.id}" title="地図で光らせる">${esc(pr.name)}伯領</button>`).join('')} <button type="button" class="small" data-flash="${w.countiesOf(d.id).map((pr) => pr.id).join(',')}">🗺️ 地図で見る</button></dd>` : ''}
         <dt>存命</dt><dd>${members.length} 人・平均の近交係数 ${meanF.toFixed(3)}</dd>
         ${members.length ? `<dt>遺伝の傾向</dt><dd class="small">血友病の保因者・患者 ${count((p) => p.genome && (isCarrier(p.genome, 'HEM') || p.pheno.hemophilia))} 人・受け口 ${count((p) => p.pheno.jaw)} 人・狂気の素質 ${count((p) => p.pheno.madness)} 人・虚弱 ${count((p) => p.pheno.load > 0)} 人</dd>` : ''}
       </dl>

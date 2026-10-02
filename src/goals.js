@@ -156,6 +156,8 @@ export const GoalsMixin = {
     this.player.achievements = this.player.achievements ?? [];
     this.player.achievements.push({ key: goal.key, label: GOALS[goal.key].label, icon: GOALS[goal.key].icon, year: this.year, years: this.year - goal.since });
     d.prestige += 30;
+    const hh = this.head(d);
+    if (hh) this._deed(hh, 'goal', `家の目標「${GOALS[goal.key].label}」を成し遂げる`, { label: GOALS[goal.key].label });
     this.addLog('gene', `🎯 ${d.name}家は「${GOALS[goal.key].label}」を成し遂げた（${this.year - goal.since} 年かけて）。家格 +30。`);
     this.player.goal = null;
     this._goalDecision();

@@ -146,7 +146,7 @@ export class RealmPanel {
         const f = inFaction.get(d.id);
         return `<tr><td><span class="kdot" style="background:${d.color}"></span>${esc(d.name)}家<div class="small">${h ? personLink(w, h, { short: true }) : ''}</div></td>
           <td>${esc(w.houseTitle(d) ?? rank[w.houseRank(d)])}</td>
-          <td class="num">${w.countiesOf(d.id, k.id).length}</td>
+          <td class="num"><button type="button" class="chip-btn" data-flash="${w.countiesOf(d.id, k.id).map((pr) => pr.id).join(',')}" data-flash-kind="news" title="この家の伯爵領を地図で光らせる">${w.countiesOf(d.id, k.id).length}</button></td>
           <td class="num"><span class="opinion ${o >= 10 ? 'pos' : o <= -10 ? 'neg' : ''}" title="${esc(why)}">${o > 0 ? '+' : ''}${o}</span><div class="small muted why">${top.map(([v, t]) => `${esc(t)} ${v > 0 ? '+' : ''}${v}`).join('<br>')}</div></td>
           <td>${f ? `<span class="badge bad">${FACTION_LABEL[f]}</span>` : ''}${mine ? `<button type="button" class="small" data-revoke="${d.id}" title="いちばん大きな伯爵領を取り上げて王領にする。その家は強く恨み、ほかの諸侯も王を恐れる">没収</button>` : ''}</td></tr>`;
       })
@@ -162,8 +162,8 @@ export class RealmPanel {
       <h3>王領（${demesne.length} / 直轄できる上限 ${w.demesneLimit(k)}）</h3>
       ${
         mine
-          ? `<div class="chips small">${demesne.map((pr) => `<span>${esc(pr.name)}${pr.id === k.capital ? '（首都）' : ` <button type="button" class="small" data-grant="${pr.id}" title="この伯爵領を諸侯に与える（相手を選べる）。与えた家の忠誠は上がる">与える</button>`}</span>`).join('')}</div><p class="small muted">土地を与えると、その家の忠誠が上がり兵もよく出すようになります。上限を超えた分は、年に一度、誰に与えるか聞かれます。</p>`
-          : `<p class="small">${demesne.map((pr) => `${esc(pr.name)}${pr.id === k.capital ? '（首都）' : ''}`).join('・')}。上限を超えた土地は恩賞として諸侯に与えられる。</p>`
+          ? `<div class="chips small">${demesne.map((pr) => `<span><button type="button" class="chip-btn" data-flash="${pr.id}" data-flash-kind="mine" title="地図で光らせる">${esc(pr.name)}</button>${pr.id === k.capital ? '（首都）' : ` <button type="button" class="small" data-grant="${pr.id}" title="この伯爵領を諸侯に与える（相手を選べる）。与えた家の忠誠は上がる">与える</button>`}</span>`).join('')}</div><p class="small muted">土地を与えると、その家の忠誠が上がり兵もよく出すようになります。上限を超えた分は、年に一度、誰に与えるか聞かれます。</p>`
+          : `<p class="small">${demesne.map((pr) => `<button type="button" class="chip-btn" data-flash="${pr.id}" title="地図で光らせる">${esc(pr.name)}</button>${pr.id === k.capital ? '（首都）' : ''}`).join('')}。上限を超えた土地は恩賞として諸侯に与えられる。</p>`
       }
       <h3>諸侯（${vassals.length} 家）</h3>
       ${vassals.length ? `<table class="list"><thead><tr><th>家</th><th>爵位</th><th class="num">伯爵領</th><th class="num">忠誠</th><th>派閥</th></tr></thead><tbody>${rows}</tbody></table><p class="small muted">忠誠の数字の下は、大きく効いている理由。数字にマウスを乗せると内訳がすべて出ます。忠誠が低い家は兵を出し渋り、-10 を下回ると派閥をつくりはじめます。${mine ? '没収すると、その家は強く恨み（-50）、ほかの諸侯も王を恐れます（-8）。' : ''}</p>` : '<p class="small muted">諸侯はいない。</p>'}

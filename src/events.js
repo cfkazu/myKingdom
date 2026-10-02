@@ -196,6 +196,9 @@ export const EventsMixin = {
   _evLastWords(d, head, heir) {
     head.lastWords = true;
     head.frail = true;
+    // 最期を告げたら、1〜3 年のうちに本当に亡くなる
+    head.doomYear = this.year + 1 + this.rng.int(3);
+    const parent = head.sex === 'M' ? '父' : '母';
     this._event(
       'last',
       head.id,
@@ -203,7 +206,7 @@ export const EventsMixin = {
       this.rng.pick([
         `${this.pn(head)}（${this.age(head)}歳）は病の床で死期を悟り、跡継ぎの ${this.pn(heir)} を枕元に呼んだ。何を遺すか。`,
         `狩りの帰りに倒れた ${this.pn(head)}（${this.age(head)}歳）は、もう馬に乗れないと悟った。${this.pn(heir)} の手を取り、最後の言葉を探している。`,
-        `${this.pn(head)}（${this.age(head)}歳）の咳が止まらない。侍医は首を振った。${this.pn(heir)} は父の言葉を待っている。`,
+        `${this.pn(head)}（${this.age(head)}歳）の咳が止まらない。侍医は首を振った。${this.pn(heir)} は${parent}の言葉を待っている。`,
         `冬の夜、${this.pn(head)}（${this.age(head)}歳）は家の古い肖像画の前に ${this.pn(heir)} を呼び、自分の時が尽きつつあると告げた。`,
       ]),
       [
@@ -364,7 +367,7 @@ export const EventsMixin = {
           heir.env.charisma = (heir.env.charisma ?? 0) + 0.5;
         } else heir.env.strength = (heir.env.strength ?? 0) + 0.8;
         heir.pheno = express(heir.genome, heir.env);
-        return `${heir.name}は父の言葉を胸に刻んだ。`;
+        return `${heir.name}は${p.sex === 'M' ? '父' : '母'}の言葉を胸に刻んだ。`;
       }
       default:
         return null;

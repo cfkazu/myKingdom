@@ -514,6 +514,7 @@ export class World {
     this._regencies();
     this._intrigue();
     this._marriages();
+    this._bondDrift();
     this._births();
     this._refreshCaches();
     this._updateAlliances();
@@ -632,6 +633,10 @@ export class World {
   _mortality() {
     for (const p of this.living) {
       if (!p.alive) continue;
+      if (p.doomYear != null && this.year >= p.doomYear) {
+        this._kill(p, this.age(p) >= 62 ? '老衰' : '病死');
+        continue;
+      }
       const h = this.hazard(p);
       if (!this.rng.chance(h)) continue;
       const a = this.age(p);

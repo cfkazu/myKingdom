@@ -39,7 +39,7 @@ export class Court {
     if (k.regentId != null) add(w.get(k.regentId), '摂政');
     for (const id of r.children) {
       const c = w.get(id);
-      add(c, c.sex === 'M' ? '王子' : '王女');
+      add(c, `${c.sex === 'M' ? '王子' : '王女'}${c.imprisoned ? '（幽閉）' : c.cloistered ? '（修道院）' : c.passedOver ? '（継承外）' : ''}`);
     }
     for (const id of [r.fatherId, r.motherId]) add(w.get(id), id === r.fatherId ? '王の父' : '王の母');
     const par = w.get(r.fatherId) ?? w.get(r.motherId);

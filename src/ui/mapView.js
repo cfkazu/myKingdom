@@ -92,8 +92,8 @@ export class MapView {
   }
 
   // 報せの地方を、しばらく光らせる
-  flash(pids) {
-    this.flashes = { pids: [...new Set(pids)].filter((id) => this.world.provinces[id]), until: performance.now() + 8000 };
+  flash(pids, kind = 'news') {
+    this.flashes = { pids: [...new Set(pids)].filter((id) => this.world.provinces[id]), kind, until: performance.now() + 10000 };
   }
 
   _provinceCenter(pid) {
@@ -172,7 +172,8 @@ export class MapView {
   }
 
   legendHTML() {
-    return `${this._modeLegend()}<div class="icon-legend">● 貴族（金の縁＝王族・白い縁＝当主・中の白丸＝女性）　· 領民　🏰 城（旗＝持ち主）　♛ 首都　⚑ 軍勢　⚔️ 会戦</div>`;
+    const mine = this.world.player && !this.world.player.over ? `<div class="mine-legend"><span class="sw sw-mine"></span>金の太線＝あなたの家の領地${this.world.playerKingdom() ? '（王領を含む）' : ''}<span class="sw sw-rebel"></span>赤い斜線＝あなたの国で反乱中の諸侯の領地</div>` : '';
+    return `${mine}${this._modeLegend()}<div class="icon-legend">● 貴族（金の縁＝王族・白い縁＝当主・中の白丸＝女性）　· 領民　🏰 城（旗＝持ち主）　♛ 首都　⚑ 軍勢　⚔️ 会戦</div>`;
   }
 
   _modeLegend() {
@@ -221,6 +222,16 @@ export class MapView {
       return shade(base, (hash01(pr.id * 31) - 0.5) * 0.16);
     });
     const sel = this.selectedKingdom;
+    // あなたの家の領地（王なら王領も）と、反乱中の領地
+    const mine = this.myProvinces();
+    const playing = mine.size > 0 || (w.player && !w.player.over);
+    const rebelHolders = new Set();
+    // 遊んでいるときは、自分の国の反乱だけに斜線を引く
+    const realm = playing ? (w.playerKingdom() ?? w.playerLiege()) : null;
+    for (const war of w.wars) if (!war.ended && (war.kind === 'civil' || war.kind === 'independence') && (!realm || war.defenderId === realm.id)) for (const id of war.members ?? []) rebelHolders.add(id);
+    const rebel = (pr) => pr.holder != null && rebelHolders.has(pr.holder);
+    const gold = [236, 196, 74];
+    const rebelRgb = [150, 30, 28];
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const i = y * W + x;
@@ -232,13 +243,19 @@ export class MapView {
           // 地面のざらつき（丘や森のような陰影）
           rgb = shade(rgb, (hash01(i * 3 + 1) - 0.5) * 0.08);
           if (sel != null && w.provinces[id].ownerId !== sel) rgb = lerpRgb(rgb, [200, 196, 186], 0.45);
+          // 遊んでいるときは、自分の領地を金色寄りに、ほかの家の領地を少し淡く
+          if (mine.has(id)) rgb = lerpRgb(rgb, gold, 0.22);
+          else if (playing && this.mode !== 'kingdom') rgb = lerpRgb(rgb, [214, 208, 196], 0.22);
         }
+        const hatch = id >= 0 && rebel(w.provinces[id]);
         for (let py = 0; py < CELL; py++) {
           let o = ((y * CELL + py) * W * CELL + x * CELL) * 4;
           for (let px = 0; px < CELL; px++, o += 4) {
-            data[o] = rgb[0];
-            data[o + 1] = rgb[1];
-            data[o + 2] = rgb[2];
+            // 反乱中の領地は赤い斜線
+            const c = hatch && (x * CELL + px + y * CELL + py) % 7 < 2 ? rebelRgb : rgb;
+            data[o] = c[0];
+            data[o + 1] = c[1];
+            data[o + 2] = c[2];
             data[o + 3] = 255;
           }
         }
@@ -284,7 +301,36 @@ export class MapView {
         }
       }
     }
+    // あなたの領地の外周：暗い下地に金の太線
+    if (mine.size) {
+      for (const [color, lw] of [['rgba(40,25,5,.55)', 6], ['#f2c94c', 3.4]]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lw;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const a = cells[y * W + x];
+            for (const dx of [1, 0]) {
+              const nx = x + dx;
+              const ny = y + (1 - dx);
+              const b = nx < W && ny < H ? cells[ny * W + nx] : -1;
+              if (mine.has(a) !== mine.has(b)) seg(x, y, dx);
+            }
+          }
+        }
+      }
+    }
     this._retarget();
+  }
+
+  // あなたの家が治める地方：諸侯なら持っている伯爵領、王ならそれに加えて王領
+  myProvinces() {
+    const w = this.world;
+    const out = new Set();
+    if (!w.player || w.player.over) return out;
+    const pd = w.player.dynastyId;
+    const pk = w.playerKingdom();
+    for (const pr of w.provinces) if (pr.holder === pd || (pk && pr.ownerId === pk.id && w.isDemesne(pr))) out.add(pr.id);
+    return out;
   }
 
   // ───────── 出来事のアイコン ─────────
@@ -430,9 +476,30 @@ export class MapView {
     // 報せの地方：赤く脈打たせ、名前を出す
     if (this.flashes && this.flashes.until > now) {
       const { W } = w.map;
-      const pulse = this.reduced ? 0.35 : 0.25 + 0.2 * (0.5 + 0.5 * Math.sin(now / 160));
-      ctx.fillStyle = `rgba(225,40,40,${pulse})`;
+      const pulse = this.reduced ? 0.5 : 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(now / 160));
+      // 失った地方は赤、得た地方・自分の領地は金、そのほかは赤みの橙
+      const rgb = { lost: '220,40,40', gain: '240,190,40', mine: '240,190,40' }[this.flashes.kind] ?? '230,80,30';
+      ctx.fillStyle = `rgba(${rgb},${pulse})`;
+      const set = new Set(this.flashes.pids);
       for (const pid of this.flashes.pids) for (const i of this.cellsOf[pid] ?? []) ctx.fillRect((i % W) * CELL, Math.floor(i / W) * CELL, CELL, CELL);
+      // 外周を太く縁取る（失った地方は点線）
+      ctx.strokeStyle = `rgb(${rgb})`;
+      ctx.lineWidth = 3;
+      ctx.setLineDash(this.flashes.kind === 'lost' ? [6, 4] : []);
+      const { cells, H } = w.map;
+      ctx.beginPath();
+      for (const pid of this.flashes.pids)
+        for (const i of this.cellsOf[pid] ?? []) {
+          const x = i % W;
+          const y = Math.floor(i / W);
+          const at = (xx, yy) => (xx < 0 || yy < 0 || xx >= W || yy >= H ? -1 : cells[yy * W + xx]);
+          if (!set.has(at(x + 1, y))) (ctx.moveTo((x + 1) * CELL, y * CELL), ctx.lineTo((x + 1) * CELL, (y + 1) * CELL));
+          if (!set.has(at(x - 1, y))) (ctx.moveTo(x * CELL, y * CELL), ctx.lineTo(x * CELL, (y + 1) * CELL));
+          if (!set.has(at(x, y + 1))) (ctx.moveTo(x * CELL, (y + 1) * CELL), ctx.lineTo((x + 1) * CELL, (y + 1) * CELL));
+          if (!set.has(at(x, y - 1))) (ctx.moveTo(x * CELL, y * CELL), ctx.lineTo((x + 1) * CELL, y * CELL));
+        }
+      ctx.stroke();
+      ctx.setLineDash([]);
       for (const pid of this.flashes.pids) {
         const c = this._provinceCenter(pid);
         this._text(ctx, w.provinces[pid].name, c.x, c.y - 10, 13, '#ffffff');

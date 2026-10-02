@@ -159,9 +159,16 @@ export const MatchMixin = {
         notes.push('因縁が和らいだ');
       }
     }
+    // 目立つ縁組は生涯に残す
+    const royal = this.royalOf(c);
+    const tag = c.rulerOf != null ? `${this.kingdoms[c.rulerOf].name}の${c.sex === 'M' ? '王' : '女王'}` : royal && [c.fatherId, c.motherId].includes(royal.rulerId) ? `${royal.name}の${c.sex === 'M' ? '王子' : '王女'}` : offer?.cost ? `高嶺の花` : love ? '想い人' : null;
+    if (tag) {
+      this._deed(p, 'match', `${tag} ${c.name}と結ばれる`, { tag, name: c.name });
+      this._deed(c, 'match', `${p.name}と結ばれる`, { tag: null, name: p.name });
+    }
     const bond = p.bond?.kind;
-    if (bond === 'love') notes.push('ふたりは仲睦まじい');
-    if (bond === 'cold') notes.push('ふたりの仲は冷ややか');
+    if (bond === 'love') notes.push(`ふたりは仲睦まじい（${p.bond.why}）`);
+    if (bond === 'cold') notes.push(`ふたりの仲は冷ややか（${p.bond.why}）`);
     if (offer?.cost) notes.unshift(`贈り物に家格 −${offer.cost}`);
     return `${matri ? `${c.name}を入婿に迎えた` : `${p.name}と${c.name}の縁談がまとまった`}。${notes.join('・')}`;
   },
@@ -179,17 +186,38 @@ export const MatchMixin = {
     return cd ? `${cd.name}家の申し込みを断った。` : null;
   },
 
-  // 夫婦仲：魅力・慈愛・年の差と、めぐりあわせで決まる
+  // 夫婦仲：魅力・慈愛・年の差と、めぐりあわせで決まる。理由も残す
   _bond(h, w, love = false) {
-    let v = (this.rng.next() - 0.5) * 2;
-    v += (this.charm(h) + this.charm(w) - 100) / 80;
-    v += (h.pheno.kindness + w.pheno.kindness - 100) / 120;
-    v -= Math.max(0, Math.abs(this.age(h) - this.age(w)) - 8) / 15;
-    if (h.mad || w.mad) v -= 1;
-    if (love) v += 2;
+    const luck = (this.rng.next() - 0.5) * 2;
+    const parts = [
+      [(this.charm(h) + this.charm(w) - 100) / 80, 'ふたりとも魅力的', 'ふたりとも魅力に乏しい'],
+      [(h.pheno.kindness + w.pheno.kindness - 100) / 120, 'ふたりとも情け深い', '情の薄い者どうし'],
+      [-Math.max(0, Math.abs(this.age(h) - this.age(w)) - 8) / 15, '', `年の差が ${Math.abs(this.age(h) - this.age(w))} 歳`],
+      [h.mad || w.mad ? -1 : 0, '', '狂気'],
+      [love ? 2 : 0, 'もともと慕い合っていた', ''],
+      [luck, '気が合った', 'そりが合わなかった'],
+    ];
+    const v = parts.reduce((s, [x]) => s + x, 0);
     const kind = v > 0.9 ? 'love' : v < -0.7 ? 'cold' : null;
-    h.bond = { with: w.id, kind };
-    w.bond = { with: h.id, kind };
+    // 結果にいちばん効いた理由
+    const why = kind ? parts.filter(([x]) => (kind === 'love' ? x > 0.15 : x < -0.15)).sort((a, b) => Math.abs(b[0]) - Math.abs(a[0])).slice(0, 2).map((x) => (kind === 'love' ? x[1] : x[2])).filter(Boolean).join('・') : '';
+    h.bond = { with: w.id, kind, why };
+    w.bond = { with: h.id, kind, why };
+  },
+
+  // 夫婦仲は年とともに少しずつ変わる（冷えた仲も、時がたてば和らぐことがある）
+  _bondDrift() {
+    for (const w of this.living) {
+      if (!w.alive || w.sex !== 'F' || w.spouseId == null || !w.bond || w.bond.with !== w.spouseId) continue;
+      const h = this.get(w.spouseId);
+      let next;
+      if (w.bond.kind === 'cold' && this.rng.chance(0.04)) next = { kind: null, why: '時がたって和らいだ' };
+      else if (w.bond.kind == null && this.rng.chance(0.015)) next = this.rng.chance(0.5) ? { kind: 'love', why: '連れ添ううちに情が深まった' } : { kind: 'cold', why: '心が離れていった' };
+      else if (w.bond.kind === 'love' && (w.mad || h.mad) && this.rng.chance(0.1)) next = { kind: 'cold', why: '狂気が仲を裂いた' };
+      if (!next) continue;
+      Object.assign(w.bond, next);
+      if (h.bond) Object.assign(h.bond, next);
+    }
   },
 
   // 夫婦仲が子づくりに効く割合
@@ -199,7 +227,8 @@ export const MatchMixin = {
   },
 
   bondLabel(p) {
-    const k = p.bond && p.bond.with === p.spouseId ? p.bond.kind : null;
-    return k === 'love' ? '💕 仲睦まじい' : k === 'cold' ? '❄ 冷え切っている' : '';
+    const b = p.bond && p.bond.with === p.spouseId ? p.bond : null;
+    const why = b?.why ? `（${b.why}）` : '';
+    return b?.kind === 'love' ? `💕 仲睦まじい${why}：子に恵まれやすい` : b?.kind === 'cold' ? `❄ 冷え切っている${why}：子ができにくく、不義が起きやすい。時がたてば和らぐこともある` : '';
   },
 };
