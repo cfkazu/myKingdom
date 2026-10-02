@@ -4,6 +4,7 @@
 import { EDUCATION } from '../player.js';
 import { APTITUDES, EXAMINE_COST, GOALS } from '../goals.js';
 import { TRAIT_LABEL } from '../fostering.js';
+import { rebellionHTML, rebellionTitle } from './rebellionView.js';
 import { LOCUS } from '../genes.js';
 import { HAIR_LABEL, EYE_LABEL } from '../genes.js';
 import { kinshipLabel } from '../pedigree.js';
@@ -49,14 +50,36 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d) }[d.type]();
-    const label = { news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d) }[d.type]();
+    const label = { rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
       .map((x) => `<span class="badge">${label[x.type]}${x.personId != null ? `：${esc(w.get(x.personId).name)}` : ''}</span>`)
       .join('');
     this.el.innerHTML = `${body}${more > 0 ? `<p class="small muted queue">このあと待っている決断（${more}）：${queue}</p>` : ''}`;
+  }
+
+  // ───────── 内乱 ─────────
+
+  _rebellion(w, d) {
+    const war = w.wars.find((x) => x.id === d.warId);
+    if (!war || war.ended) {
+      return `<div class="decision"><div class="eyebrow">🔥 内乱</div><h2>この内乱はもう終わりました</h2><p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="ok">閉じる</button></p></div>`;
+    }
+    const role = w.playerKingdom()?.id === war.defenderId ? 'king' : (war.members ?? []).includes(w.player.dynastyId) ? 'rebel' : 'vassal';
+    if (!d.flashed) {
+      d.flashed = true;
+      if (war.provinces.length) this.app.flashProvinces(war.provinces, 'news');
+    }
+    const lead = { king: 'あなたの国で反乱が起きました。何もしなくても戦は毎年の会戦で進みますが、手を打てば有利にできます。', vassal: '主君の国で反乱が起きました。あなたの家はどちらにつきますか？', rebel: 'あなたの家が加わった派閥が、ついに反旗をひるがえしました。' }[role];
+    return `<div class="decision">
+      <div class="eyebrow">🔥 ${esc(war.name)}</div><h2>${rebellionTitle(w, war)}</h2>
+      <p>${lead}${w._grudgeNote ? ` ${richText(w, w._grudgeNote((war.members ?? []).map((id) => w.dynasties[id]), w.dyn(w.ruler(w.kingdoms[war.defenderId]))))}` : ''}</p>
+      ${rebellionHTML(w, war, role)}
+      <p class="small muted">あとからでも、王国タブの「内乱への対処」で同じ手を打てます。反乱軍の領地は地図で赤い斜線になります。</p>
+      <p class="choices"><button type="button" data-id="${d.id}" data-choice="ok">${role === 'vassal' ? '様子を見る（閉じる）' : '閉じる'}</button></p>
+    </div>`;
   }
 
   // ───────── 報せ ─────────

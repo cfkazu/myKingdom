@@ -48,6 +48,8 @@ export const NewsMixin = {
       if (!this._isMine(D)) return;
       // あなたが自分で起こした反乱も同じ（派閥に加わっていて始まった反乱は知らせる）
       if (this._quietNews) return;
+      // 打てる手のあるカードで知らせる
+      if (this._rebellionDecision(w)) return;
       const names = (w.members ?? []).map((id) => `${this.dynasties[id].name}家`).join('・');
       const goal = w.kind === 'independence' ? '国から独立すること' : w.claimantId != null ? `${this.pn(this.get(w.claimantId))} を王に就けること` : `盟主 ${this.pn(this.get(w.leaderId))} が王になること`;
       const means = mineRebel

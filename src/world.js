@@ -18,6 +18,7 @@ import { LedgerMixin } from './ledger.js';
 import { MatchMixin } from './matchmaking.js';
 import { NewsMixin } from './news.js';
 import { FosterMixin } from './fostering.js';
+import { RebellionMixin } from './rebellion.js';
 
 export const ADULT = 16;
 
@@ -1461,9 +1462,11 @@ export class World {
         for (const pr of this.provinces) if (pr.ownerId === main.id && ex.has(pr.holder)) s += this.countyLevy(pr);
         return s * 1.2 + 2;
       }
-      // 王に不満な諸侯は、反乱の鎮圧に兵を出さない
-      for (const d of this.vassals(main)) if ((d.opinion ?? 0) < -15) ex.add(d.id);
-      return this.power(main, ex) + w.defenderAllies.reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
+      // 王に不満な諸侯は、反乱の鎮圧に兵を出さない（王に味方すると決めた家は出す）
+      for (const d of this.vassals(main)) if ((d.opinion ?? 0) < -15 && !(w.loyalists ?? []).includes(d.id)) ex.add(d.id);
+      const base = this.power(main, ex) + w.defenderAllies.reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
+      // 傭兵を雇っているあいだは 35% 増し
+      return base * (w.mercs != null && this.year <= w.mercs ? 1.35 : 1);
     }
     const allies = side === 'A' ? w.attackerAllies : w.defenderAllies;
     return this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.5, 0);
@@ -1676,11 +1679,19 @@ export class World {
     const ld = this.dyn(leader);
     const kd = this.ruler(k) ? this.dyn(this.ruler(k)) : null;
     this._avenge(kd, ld, [k.id]);
+    const taken = [];
     if (ld)
       for (const pr of this.countiesOf(ld.id, k.id)) {
         this._newsRevoked(ld, pr, `${w.name}に負け、盟主の家として所領を没収された。`);
         pr.holder = null;
+        taken.push(pr);
       }
+    // 王に兵を出した家に、没収地を恩賞として与える
+    for (const id of w.loyalists ?? []) {
+      const pr = taken.shift();
+      const d = this.dynasties[id];
+      if (pr && d && !d.extinct && this.ruler(k)?.dynastyId !== id) this._grant(k, pr, d, '内乱の戦功');
+    }
     for (const id of w.members ?? []) {
       const d = this.dynasties[id];
       d.prestige *= 0.6;
@@ -1956,4 +1967,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin, RebellionMixin);

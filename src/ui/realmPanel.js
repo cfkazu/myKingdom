@@ -3,6 +3,7 @@
 import { LAWS, CUSTOMS } from '../world.js';
 import { esc, personLink, kingdomLink, richText } from './util.js';
 import { FACTION_LABEL } from '../feudal.js';
+import { rebellionHTML, rebellionTitle } from './rebellionView.js';
 
 const HOW = { inherit: '世襲', elected: '選挙', conquest: '征服', usurp: '簒奪', independence: '独立', init: '世襲' };
 const KIND = { conquest: '征服戦争', claim: '継承戦争', civil: '内乱', independence: '独立戦争' };
@@ -24,6 +25,22 @@ export class RealmPanel {
 
   // プレイヤーの国なら宣戦、主君の国なら反乱のボタン
   _actions(w, k) {
+    return this._rebellions(w, k) + this._actions2(w, k);
+  }
+
+  // 内乱への対処（あなたの国で反乱が起きているとき）
+  _rebellions(w, k) {
+    if (!w.player || w.player.over) return '';
+    const wars = w.realmRebellions().filter((x) => x.defenderId === k.id);
+    return wars
+      .map((war) => {
+        const role = w.playerKingdom()?.id === k.id ? 'king' : (war.members ?? []).includes(w.player.dynastyId) ? 'rebel' : 'vassal';
+        return `<div class="actions reb-panel"><h3>🔥 内乱への対処：${esc(war.name)}</h3><p class="small">${rebellionTitle(w, war)}</p>${rebellionHTML(w, war, role)}</div>`;
+      })
+      .join('');
+  }
+
+  _actions2(w, k) {
     if (k === w.playerKingdom()) {
       const targets = w.warTargets(k);
       const atWar = w.activeWars(k.id).length;

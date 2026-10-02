@@ -1589,3 +1589,42 @@ select:focus-visible {
   color: var(--text);
   text-decoration: underline;
 }
+
+/* 内乱 */
+.reb-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+.reb-bar {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #3b7bd1 0%, #e9e1c8 50%, #c0392b 100%);
+}
+.reb-bar i {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 16px;
+  margin-left: -2px;
+  background: var(--text);
+  border-radius: 2px;
+}
+.reb-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.reb-panel {
+  border-color: var(--bad);
+}
+.reb-tip {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--gold) 14%, var(--surface));
+}

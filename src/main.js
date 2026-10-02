@@ -66,6 +66,16 @@ class App {
   }
 
   _bind() {
+    // 内乱への手（決断カードと王国タブのどちらからでも）
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-reb]');
+      if (!b || b.disabled) return;
+      e.stopPropagation();
+      const arg = b.dataset.rebArg === '' ? null : Number(b.dataset.rebArg);
+      const msg = this.world.rebAction(Number(b.dataset.reb), b.dataset.rebAct, arg);
+      if (msg) this.toast(msg);
+      this.renderAll();
+    });
     // 地方の名前のボタン：地図でその地方を光らせる（決断カードの中はカードの側で受ける）
     document.addEventListener('click', (e) => {
       const b = e.target.closest('[data-flash]');
@@ -323,6 +333,15 @@ class App {
     this.showTab('person');
   }
 
+  // 内乱中なら、戦況と「対処する」
+  _rebelBar(w, d) {
+    if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
+    return w
+      .realmRebellions()
+      .map((war) => `<div class="lands-bar small bad">🔥 <b>内乱中：${war.name}</b>　戦況 ${Math.round(war.score)}（${war.score <= -30 ? '王が優勢' : war.score >= 30 ? '反乱軍が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${war.defenderId}">対処する</button></div>`)
+      .join('');
+  }
+
   // あなたの領地：名前を押すと地図で光る
   _landsBar(w, d) {
     if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
@@ -359,12 +378,18 @@ class App {
       el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
       return;
     }
-    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._landsBar(w, d)}${this._goalBar(w, d)}${
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._rebelBar(w, d)}${this._landsBar(w, d)}${this._goalBar(w, d)}${
       w.player && w.player.dynastyId === d.id && !w.player.over && w.houseStanding(d).rank === 0
         ? '<div class="small hint">⚠️ あなたの家は所領を失いました。王家や大きな家との縁談で請求権や同盟を得るか、家タブから別の家に乗り換えましょう。</div>'
         : ''
     }`;
     el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
+    for (const b of el.querySelectorAll('[data-gorealm]'))
+      b.addEventListener('click', () => {
+        this.selectKingdom(Number(b.dataset.gorealm), true);
+        this.showTab('realm');
+        this.setPlaying(false);
+      });
     el.querySelector('[data-goal]')?.addEventListener('click', () => {
       this.world._goalDecision();
       this.setPlaying(false);

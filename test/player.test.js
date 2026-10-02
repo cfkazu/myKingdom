@@ -239,3 +239,29 @@ test("縁談：候補には縁があり、高嶺の花は家格を払えば必�
   assert.ok(news > 0);
   assert.ok(courted >= 0);
 });
+
+test("内乱：王はカードで知らされ、傭兵・切り崩し・譲歩で手を打てる", () => {
+  const w = new World({ seed: "rebel-1" });
+  const k = w.aliveKingdoms().find((x) => w.vassals(x).filter((d) => w.countiesOf(d.id, x.id).length).length >= 2);
+  w.setPlayer(w.ruler(k).dynastyId);
+  for (const d of [...w.pendingDecisions()]) w.decide(d.id, "none");
+  const rebels = w.vassals(k).filter((d) => w.countiesOf(d.id, k.id).length && w.head(d)).slice(0, 2);
+  w._rebel(k, "usurp", w.head(rebels[0]), [...rebels]);
+  const war = w.realmRebellions()[0];
+  assert.ok(war, "内乱が始まらない");
+  const card = w.pendingDecisions().find((d) => w.dynasties && d.type === "rebellion");
+  assert.ok(card && card.role === "king", "内乱のカードが来ない");
+  const my = w.playerDynasty();
+  my.prestige = 100;
+  const before = w._sidePower(war, "D");
+  w.rebAction(war.id, "mercs");
+  assert.ok(w._sidePower(war, "D") > before * 1.3, "傭兵で兵力が増えない");
+  assert.equal(Math.round(my.prestige), 85);
+  const other = war.members.find((id) => id !== w.get(war.leaderId).dynastyId);
+  if (other != null) {
+    w.rebAction(war.id, "peel", other);
+    assert.ok(!war.members.includes(other), "切り崩した家が反乱軍に残っている");
+  }
+  w.rebAction(war.id, "concede");
+  assert.ok(war.ended, "譲歩しても戦が終わらない");
+});

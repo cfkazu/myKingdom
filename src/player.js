@@ -228,6 +228,7 @@ export const PlayerMixin = {
     this.player.decisions.splice(i, 1);
     if (d.type === 'event') return this._resolveEvent(d, choice);
     if (d.type === 'news') return null;
+    if (d.type === 'rebellion') return null;
     if (d.type === 'goal') {
       const o = d.options.find((x) => x.key === choice);
       this.setGoal(o ? o.key : null, o ? o.target : null);
