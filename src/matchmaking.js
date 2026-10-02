@@ -116,12 +116,16 @@ export const MatchMixin = {
   _marriageProposals() {
     if (!this.player || this.player.over) return;
     for (const p of this.living) {
-      if (!p.alive || p.spouseId != null || !this.playerControls(p) || p.imprisoned || p.cloistered) continue;
+      if (!p.alive || p.spouseId != null || !this.isCore(p) || p.imprisoned || p.cloistered) continue;
       const a = this.age(p);
       if (a < 16 || a > 45) continue;
       if (this.player.decisions.some((d) => d.type === 'marriage' && d.personId === p.id)) continue;
-      if (this._askedRecently(`pr${p.id}`, 4) || !this.rng.chance(0.15)) continue;
-      if (this._proposalFor(p)) return;
+      // 申し込みは一生に 2 回まで。こちらの縁談と同じ間隔で数える
+      if ((p.proposals ?? 0) >= 2 || !this.rng.chance(0.15) || !this._matchDue(p)) continue;
+      if (this._proposalFor(p)) {
+        this._countAsk(p);
+        return;
+      }
     }
   },
 
@@ -131,7 +135,7 @@ export const MatchMixin = {
       if (!cands.length) return false;
       // 先方がいちばん乗り気な相手
       const o = cands.sort((x, y) => y.theirs - x.theirs)[0];
-      this.player.asked.set(`pr${p.id}`, this.year);
+      p.proposals = (p.proposals ?? 0) + 1;
       const hooks = this.marriageHooks(p, o.c, Math.abs(this.age(o.c) - this.age(p)) <= 12 && this.rng.chance(0.25));
       // 申し込みには、たいてい手土産がつく
       if (!hooks.some((h) => h.key === 'dowry')) {

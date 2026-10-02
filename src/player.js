@@ -67,6 +67,18 @@ export const PlayerMixin = {
     return p === h || p.fatherId === h.id || p.motherId === h.id;
   },
 
+  // カードで縁談・養育先を聞く人：当主・跡継ぎ・当主の上の子 3 人（と、「縁談を探す」を押した人）。
+  // ほかの子は家の者にまかせる（人物欄の「縁談を探す」でいつでも自分で選べる）
+  isCore(p) {
+    if (!this.playerControls(p)) return false;
+    const h = this.playerHead();
+    if (p === h || p.seekManual) return true;
+    const d = this.playerDynasty();
+    if (this.houseHeir(d) === p) return true;
+    const kids = h.children.map((id) => this.get(id)).filter((c) => c.alive && c.dynastyId === d.id && !c.passedOver && !c.cloistered && !c.imprisoned).sort((a, b) => a.birthYear - b.birthYear || a.id - b.id);
+    return kids.slice(0, 3).includes(p);
+  },
+
   _decision(d) {
     d.id = this.player.nextId++;
     d.year = this.year;
@@ -139,16 +151,54 @@ export const PlayerMixin = {
 
   _playerMarriages(market) {
     for (const p of market) {
-      if (!this.playerControls(p) || p.spouseId != null || p.imprisoned || p.cloistered) continue;
+      if (!this.isCore(p) || p.spouseId != null || p.imprisoned || p.cloistered) continue;
       const a = this.age(p);
       if (a < 16) continue;
       if (this.player.decisions.some((d) => d.type === 'marriage' && d.personId === p.id)) continue;
-      if (this._askedRecently(`m${p.id}`, 3)) continue;
-      this.player.asked.set(`m${p.id}`, this.year);
+      if (!this._matchDue(p)) continue;
+      this._countAsk(p);
       // ときには、こちらから探す前に先方から申し込みが来る
-      if (this.rng.chance(0.3) && this._proposalFor(p)) continue;
+      if ((p.proposals ?? 0) < 2 && this.rng.chance(0.3) && this._proposalFor(p)) continue;
       this._marriageDecision(p);
     }
+  },
+
+  // 縁談を出すかどうか：適齢期に 1 回、見送ったら 5 年後にもう 1 回。それも見送ったら、求められるまで出さない
+  _matchDue(p) {
+    if (p.noMatch) return false;
+    // 結婚するたびに数え直す（先立たれたら、また 2 回まで）
+    if (p.mAsksFor !== p.spouses.length) {
+      p.mAsksFor = p.spouses.length;
+      p.mAsks = 0;
+    }
+    // 跡継ぎのいる 45 歳以上の人が配偶者を亡くしても、自動では再婚の話を出さない
+    if (p.spouses.length && this.age(p) >= 45 && p.children.some((id) => this.get(id).alive && this.get(id).dynastyId === p.dynastyId)) {
+      p.noMatch = 'widow';
+      return false;
+    }
+    if ((p.mAsks ?? 0) >= 2) {
+      p.noMatch = 'declined';
+      return false;
+    }
+    return !this._askedRecently(`m${p.id}`, 5);
+  },
+
+  _countAsk(p) {
+    this.player.asked.set(`m${p.id}`, this.year);
+    p.mAsks = (p.mAsks ?? 0) + 1;
+  },
+
+  // 人物欄の「縁談を探す」：いつでも縁談を出す
+  seekMatch(p) {
+    if (!this.playerControls(p) || p.spouseId != null || this.age(p) < 16 || p.imprisoned || p.cloistered) return false;
+    if (this.player.decisions.some((d) => d.type === 'marriage' && d.personId === p.id)) return true;
+    p.noMatch = null;
+    p.seekManual = true;
+    p.mAsks = 0;
+    p.mAsksFor = p.spouses.length;
+    this._countAsk(p);
+    this._marriageDecision(p);
+    return true;
   },
 
   // ───────── 教育 ─────────
@@ -186,7 +236,11 @@ export const PlayerMixin = {
     if (d.type === 'marriage') {
       const p = this.get(d.personId);
       if (!p.alive || p.spouseId != null) return null;
-      if (choice === 'later') return d.proposal ? this._declineProposal(d, p) : null;
+      if (choice === 'never') {
+        p.noMatch = 'declined';
+        return `${p.name}の縁談は、しばらく探さない。人物欄の「縁談を探す」でいつでも探せます。`;
+      }
+      if (choice === 'later') return d.proposal ? this._declineProposal(d, p) : (p.mAsks ?? 0) >= 2 ? `${p.name}の縁談は見送った。次は人物欄の「縁談を探す」から。` : `${p.name}の縁談は見送った。5 年後にまた話が来ます。`;
       if (choice === 'lowborn') {
         const k = this.kingdomOf(p);
         const home = this.homeProvince(p) ?? k?.capital ?? 0;

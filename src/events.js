@@ -81,7 +81,7 @@ export const EventsMixin = {
     // 6. 当主の最期
     if (this.age(head) >= 58 && !head.lastWords && heir && this.rng.chance(0.2)) cands.push(() => this._evLastWords(d, head, heir));
 
-    if (!cands.length || !this.rng.chance(0.6)) return;
+    if (!cands.length || !this.rng.chance(0.4)) return;
     this.rng.pick(cands)();
   },
 

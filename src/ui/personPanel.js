@@ -21,6 +21,7 @@ export class PersonPanel {
       if (b.dataset.act === 'tree') app.showTab('family');
       if (b.dataset.act === 'follow') app.follow(Number(b.dataset.id));
       if (b.dataset.act === 'examine') app.examine(Number(b.dataset.id));
+      if (b.dataset.act === 'seek') app.seekMatch(Number(b.dataset.id));
     });
   }
 
@@ -105,6 +106,7 @@ export class PersonPanel {
       </dl>
       <p><button type="button" data-act="tree">🌳 家系図を見る</button>
       ${w.dyn(p) && this.app.followDynasty !== p.dynastyId ? `<button type="button" data-act="follow" data-id="${p.dynastyId}" title="この家の当主を追いかけます。当主が亡くなると次の当主に切り替わり、年代記もこの家の出来事に絞れます">📌 ${esc(w.dyn(p).name)}家を追う</button>` : ''}
+      ${p.alive && w.player && !w.player.over && w.playerControls(p) && p.spouseId == null && w.age(p) >= 16 && !p.imprisoned && !p.cloistered ? `<button type="button" data-act="seek" data-id="${p.id}" title="${p.noMatch ? 'いまは自動では縁談が来ません。押すと候補を探します' : '次の縁談を待たずに、いま候補を探します'}">💍 縁談を探す${p.noMatch ? '（いまは自動で来ない）' : ''}</button>` : ''}
       ${pinned && pinned.id === p.id ? '<button type="button" data-act="unpin">💍 縁談占いをやめる</button>' : `<button type="button" data-act="pin" data-id="${p.id}" title="この人を固定してから別の人を選ぶと、ふたりの縁談の相性と子の予測が見られます">💍 この人の縁談を占う</button>`}</p>
       ${this._match(w, pinned, p)}
       ${this._aptitude(w, p)}

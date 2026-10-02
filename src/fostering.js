@@ -127,7 +127,7 @@ export const FosterMixin = {
       // 当主の子と跡継ぎの子は、養育先を選ぶ（ほかの一族は家で育てる）
       const main = this._mainLine(p, d, heir);
       const child = [p.fatherId, p.motherId].includes(this.head(d)?.id);
-      if (!p.passedOver && (main || (child && !this.player.fosterAuto))) {
+      if (!p.passedOver && (main || (child && this.isCore(p) && !this.player.fosterAuto))) {
         const opts = this.fosterOptions(p);
         this._decision({ type: 'foster', personId: p.id, main, options: opts.map((o) => ({ ...o, heir: true })), missing: opts.missing });
       }
@@ -192,7 +192,8 @@ export const FosterMixin = {
         for (const k of this.kingdoms) if (k.heirId === p.id) k.heirId = null;
         this._deed(p, 'cloister', '修道院に残り、信仰に生きると決める');
       }
-      if (!this.isPlayerHouse(p) || (f.key === 'home' && !f.heir)) continue;
+      // 家で育てた子の成人は、跡継ぎのときだけ知らせる
+      if (!this.isPlayerHouse(p) || (f.key === 'home' && this.houseHeir(this.dyn(p)) !== p && !stayed)) continue;
       const lines = Object.keys(f.gains)
         .map((t) => [t, Math.round(p.pheno[t] - before[t])])
         .filter(([, v]) => Math.abs(v) >= 2)

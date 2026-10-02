@@ -249,6 +249,14 @@ class App {
     this.map.flash(pids, kind);
   }
 
+  // 人物欄の「縁談を探す」
+  seekMatch(pid) {
+    const p = this.world.get(pid);
+    if (!this.world.seekMatch(p)) return this.toast('いまは縁談を探せません。');
+    this.setPlaying(false);
+    this.renderAll();
+  }
+
   examine(pid) {
     const ok = this.world.examine(this.world.get(pid));
     if (!ok) this.toast('家格が足りません。');

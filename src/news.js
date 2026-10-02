@@ -66,8 +66,8 @@ export const NewsMixin = {
       return;
     }
     if (!this._isMine(A) && !this._isMine(D)) return;
-    // あなたが王として自分で宣戦した戦は、知らせるまでもない
-    if (this._isMine(A) && this.playerKingdom()) return;
+    // こちらから攻めた戦は知らせない（王なら自分で決めた戦、諸侯なら主君が始めた戦。結果は領土の報せで届く）
+    if (this._isMine(A)) return;
     const mine = this._isMine(A) ? A : D;
     const other = mine === A ? D : A;
     const ratio = this.power(mine) / Math.max(1, this.power(other));
@@ -100,6 +100,8 @@ export const NewsMixin = {
     let won;
     if (civil) won = mineRebel ? result === 'attacker' : result !== 'attacker';
     else won = (this._isMine(A) && result === 'attacker') || (this._isMine(D) && result === 'defender');
+    // こちらから攻めて勝った・痛み分けた戦は、領土の報せだけで足りる
+    if (!civil && this._isMine(A) && result !== 'defender') return;
     this._news({
       icon: result === 'white' ? '🤝' : won ? '🏆' : '💀',
       title: `${w.name}が終わった：${result === 'white' ? '痛み分け' : won ? 'あなたの側の勝ち' : 'あなたの側の負け'}`,

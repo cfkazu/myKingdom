@@ -1578,3 +1578,14 @@ select:focus-visible {
 .cand[hidden] {
   display: none;
 }
+
+/* 同じ時期の縁談の並び */
+.match-steps {
+  margin-bottom: 6px;
+  color: var(--text-2);
+}
+.match-steps .cur {
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: underline;
+}

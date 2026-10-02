@@ -175,13 +175,16 @@ export class DecisionPanel {
         <div class="cand-btns">${cost ? `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>口説く（家格 −${cost}）</button>${prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}` : `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">${d.proposal ? '申し込みを受ける' : 'この人と'}</button>`}${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿に迎える</button><span class="small muted matri-note">子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : ''}</div>
       </div>`;
     });
+    // 同じ時期の縁談は、まとめて順に選ぶ
+    const queue = w.pendingDecisions().filter((x) => x.type === 'marriage');
+    const steps = queue.length > 1 ? `<div class="match-steps small">💍 縁談 ${queue.indexOf(d) + 1}/${queue.length}：${queue.map((x) => `<span class="${x === d ? 'cur' : ''}">${esc(w.get(x.personId).name)}</span>`).join(' → ')}</div>` : '';
     const who = p === w.playerHead() ? '当主であるあなた' : `${esc(p.name)}（${w.age(p)}歳・${p.sex === 'M' ? '男' : '女'}）`;
     return `<div class="decision">
-      <div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 ${d.proposal ? '縁談の申し込み' : '縁談'}</div><h2>${d.proposal ? `${esc(w.dyn(w.get(d.candidateIds[0]))?.name ?? '')}家から、${who}に縁談の申し込みが来ました` : `${who}の結婚相手を選んでください`}</h2>
+      ${steps}<div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 ${d.proposal ? '縁談の申し込み' : '縁談'}</div><h2>${d.proposal ? `${esc(w.dyn(w.get(d.candidateIds[0]))?.name ?? '')}家から、${who}に縁談の申し込みが来ました` : `${who}の結婚相手を選んでください`}</h2>
       <p class="small muted">相手の家が受けてくれそうな候補です。見た目の能力は育ちも込み。子に伝わるのは🧬素質のほうです。よその家の人の素質と隠れた病の遺伝子は、鑑定するまでわかりません（いまの家格 ${Math.round(w.playerDynasty()?.prestige ?? 0)}）。</p>${this._goalHint(w)}</div></div>
       <div class="cands">${cards.join('') || '<p class="small">ふさわしい相手が見つかりません。</p>'}</div>
       ${cards.filter((c) => c.includes(' hidden>')).length ? `<p><button type="button" class="small" data-more="${d.id}">ほかの候補も見る（あと ${cards.filter((c) => c.includes(' hidden>')).length} 人）</button></p>` : ''}
-      <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">今は見送る（数年後にまた）</button>`}</p>
+      <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">${(p.mAsks ?? 0) >= 2 ? '見送る（次は人物欄の「縁談を探す」から）' : '今は見送る（5 年後にまた）'}</button><button type="button" class="small" data-id="${d.id}" data-choice="never" title="この人には、人物欄の「縁談を探す」を押すまで縁談を出しません">もう縁談は探さない</button>`}</p>
     </div>`;
   }
 

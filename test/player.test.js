@@ -34,7 +34,7 @@ test("遊ぶ家：当主と子の縁談と教育はプレイヤーが決め、AI
   for (let i = 0; i < 80; i++) {
     const before = new Map(
       w.living
-        .filter((p) => p.alive && w.playerControls(p))
+        .filter((p) => p.alive && w.isCore(p))
         .map((p) => [p.id, p.spouseId]),
     );
     w.step();
@@ -42,7 +42,7 @@ test("遊ぶ家：当主と子の縁談と教育はプレイヤーが決め、AI
     for (const [id, sp] of before) {
       const p = w.get(id);
       // 年の途中で当主が代わり、プレイヤーの手を離れた人（前の当主の子→今の当主のきょうだい）は除く
-      if (sp == null && p.spouseId != null && p.alive && w.playerControls(p))
+      if (sp == null && p.spouseId != null && p.alive && w.isCore(p))
         aiMarriedChild++;
     }
     for (const x of [...w.pendingDecisions()]) {

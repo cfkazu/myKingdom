@@ -1082,7 +1082,7 @@ export class World {
     }
     // プレイヤーの家の近親の縁談は、プレイヤーが選ぶ
     if (this.player && !this.player.over) {
-      const mine = [...men, ...women].filter((p) => this.playerControls(p));
+      const mine = [...men, ...women].filter((p) => this.isCore(p));
       if (mine.length) {
         const drop = new Set(mine.map((p) => p.id));
         for (const list of [men, women]) for (let i = list.length - 1; i >= 0; i--) if (drop.has(list[i].id)) list.splice(i, 1);
