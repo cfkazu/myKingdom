@@ -265,3 +265,30 @@ test("内乱：王はカードで知らされ、傭兵・切り崩し・譲歩�
   w.rebAction(war.id, "concede");
   assert.ok(war.ended, "譲歩しても戦が終わらない");
 });
+
+test("戦争：宣戦の見込みが出て、傭兵・和平・降伏で手を打て、同盟は破棄できる", () => {
+  const w = new World({ seed: "war-1" });
+  const k = w.aliveKingdoms().find((x) => w.neighbors(x).length);
+  w.setPlayer(w.ruler(k).dynastyId);
+  for (const d of [...w.pendingDecisions()]) w.decide(d.id, "none");
+  const t = w.neighbors(k)[0];
+  const pv = w.warPreview(k, t);
+  assert.ok(pv.ratio > 0 && ["有利", "互角", "不利"].includes(pv.verdict));
+  const war = w.playerDeclareWar(t.id);
+  assert.ok(war && w.externalWars().includes(war));
+  w.playerDynasty().prestige = 100;
+  const before = w._sidePower(war, "A");
+  w.warAction(war.id, "mercs");
+  assert.ok(w._sidePower(war, "A") > before * 1.3, "傭兵で兵力が増えない");
+  war.score = 0;
+  w.warAction(war.id, "peace");
+  assert.ok(war.ended && war.result === "white", "和平で終わらない");
+  // 同盟の破棄
+  const o = w.aliveKingdoms().find((x) => x !== k);
+  const key = k.id < o.id ? `${k.id}-${o.id}` : `${o.id}-${k.id}`;
+  w.alliances.add(key);
+  w.breakAlliance(o.id);
+  assert.ok(!w.allied(k.id, o.id));
+  w._updateAlliances();
+  assert.ok(!w.allied(k.id, o.id), "破棄した同盟がすぐ結び直された");
+});

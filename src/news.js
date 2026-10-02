@@ -74,6 +74,8 @@ export const NewsMixin = {
     const other = mine === A ? D : A;
     const ratio = this.power(mine) / Math.max(1, this.power(other));
     const attacked = mine === D;
+    // 王として攻められたら、打てる手のあるカードで知らせる
+    if (attacked && this._warDecision(w)) return;
     this._news({
       icon: '⚔️',
       title: attacked ? `${other.name}が攻めてきた：${w.name}` : `戦が始まった：${w.name}`,

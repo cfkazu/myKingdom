@@ -228,7 +228,7 @@ export const PlayerMixin = {
     this.player.decisions.splice(i, 1);
     if (d.type === 'event') return this._resolveEvent(d, choice);
     if (d.type === 'news') return null;
-    if (d.type === 'rebellion') return null;
+    if (d.type === 'rebellion' || d.type === 'war') return null;
     if (d.type === 'goal') {
       const o = d.options.find((x) => x.key === choice);
       this.setGoal(o ? o.key : null, o ? o.target : null);
@@ -327,7 +327,8 @@ export const PlayerMixin = {
     const r = this.ruler(k);
     const out = [];
     for (const t of this.neighbors(k)) {
-      if (this.allied(k.id, t.id) || this.truce(k.id, t.id) || this.atWar(k.id, t.id)) continue;
+      // 同盟国にも宣戦できる（同盟を破ることになり、諸侯が怒る）
+      if (this.truce(k.id, t.id) || this.atWar(k.id, t.id)) continue;
       out.push({ t, kind: 'conquest', claimant: null, ratio: this.power(k) / Math.max(1, this.power(t)) });
     }
     const claimants = [r, ...(r.spouseId != null ? [this.get(r.spouseId)] : []), ...r.children.map((id) => this.get(id))].filter((p) => p && p.alive);
@@ -348,7 +349,13 @@ export const PlayerMixin = {
     const r = this.ruler(k);
     const kind = claimantId != null ? 'claim' : 'conquest';
     const w = this._startWar(kind, k, t, claimantId != null ? { claimantId } : {});
-    if (this.allied(k.id, t.id)) for (const v of this.vassals(k)) this._remember(v, -10, '同盟国を裏切った', k);
+    if (this.allied(k.id, t.id)) {
+      for (const v of this.vassals(k)) this._remember(v, -10, '同盟国を裏切った', k);
+      const key = k.id < t.id ? `${k.id}-${t.id}` : `${t.id}-${k.id}`;
+      this.brokenAlliances = this.brokenAlliances ?? new Map();
+      this.brokenAlliances.set(key, this.year + 30);
+      this.alliances.delete(key);
+    }
     const c = claimantId != null ? this.get(claimantId) : null;
     this.addLog('war', `${this.pn(r)} は ${c ? `${c === r ? '自らの' : `${this.pn(c)} の`}請求権を掲げて ` : ''}${this.kn(t)} に宣戦した（${w.name}）。${this._alliesText(w)}`, [k.id, t.id]);
     return w;

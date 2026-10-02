@@ -4,6 +4,7 @@ import { LAWS, CUSTOMS } from '../world.js';
 import { esc, personLink, kingdomLink, richText } from './util.js';
 import { FACTION_LABEL } from '../feudal.js';
 import { rebellionHTML, rebellionTitle } from './rebellionView.js';
+import { warHTML, previewHTML } from './warView.js';
 
 const HOW = { inherit: '世襲', elected: '選挙', conquest: '征服', usurp: '簒奪', independence: '独立', init: '世襲' };
 const KIND = { conquest: '征服戦争', claim: '継承戦争', civil: '内乱', independence: '独立戦争' };
@@ -44,14 +45,18 @@ export class RealmPanel {
     if (k === w.playerKingdom()) {
       const targets = w.warTargets(k);
       const atWar = w.activeWars(k.id).length;
-      return `<div class="actions"><h3>⚔️ あなたの国の行い</h3>
+      const ext = w.externalWars();
+      const allies = w.alliesOf(k.id).map((id) => w.kingdoms[id]);
+      return `${ext.map((war) => `<div class="actions reb-panel"><h3>⚔ 戦争中：${esc(war.name)}</h3>${warHTML(w, war)}</div>`).join('')}
+        <div class="actions"><h3>⚔️ あなたの国の行い</h3>
         ${atWar ? `<p class="small">いま ${atWar} つの戦争を戦っています。</p>` : ''}
+        ${allies.length ? `<p class="small">同盟国：${allies.map((a) => `${kingdomLink(a)} <button type="button" class="small" data-break="${a.id}" title="家格 −10。諸侯が少し眉をひそめ、30 年は結び直せない">同盟を破棄</button>`).join(' ')}<br><span class="muted">同盟は王家どうしの婚姻から生まれます。同盟国は戦に加勢してくれますが、同盟国に宣戦すると裏切りになります。</span></p>` : ''}
         ${
           targets.length
             ? `<table class="list"><tbody>${targets
                 .map(
                   (t) => `<tr><td>${kingdomLink(t.t)}${t.claimant ? `<div class="small">${personLink(w, t.claimant, { short: true })} の請求権</div>` : '<div class="small muted">国境の地方を奪う</div>'}</td>
-                  <td class="small">兵力の比 <b class="${t.ratio >= 1.2 ? 'good' : t.ratio < 0.8 ? 'bad' : ''}">${t.ratio.toFixed(1)}</b>${w.allied(k.id, t.t.id) ? '<br><span class="bad">同盟国（裏切ると諸侯が怒る）</span>' : ''}${(() => {
+                  <td class="small">${previewHTML(w, k, t.t, t.kind)}${w.allied(k.id, t.t.id) ? '<br><span class="bad">同盟国：宣戦すると同盟を破る（諸侯が怒る・30 年は結び直せない）</span>' : ''}${(() => {
                     const tr = w.ruler(t.t);
                     const g = tr ? w.grudgesOf(w.playerDynasty(), tr.dynastyId)[0] : null;
                     return g ? `<br><span class="feud">⚔ 因縁：${richText(w, w.grudgeText(w.playerDynasty(), g))}</span>` : '';
@@ -61,7 +66,7 @@ export class RealmPanel {
                 .join('')}</tbody></table>`
             : '<p class="small muted">いま攻められる相手はいません（同盟・休戦中・隣国がない）。</p>'
         }
-        <p class="small muted">兵力の比は、こちらの兵 ÷ 相手の兵。同盟国は加勢し、大きすぎる国が攻めると包囲網ができます。諸侯の土地を取り上げるには、下の諸侯の表の「没収」を。</p></div>`;
+        <p class="small muted">見込みは、同盟国の加勢と包囲網の恐れまで含めた兵力の比です。大陸の 3 分の 1 を超える国が攻めると、ほかの国々が包囲網をつくります。諸侯の土地を取り上げるには、下の諸侯の表の「没収」を。</p></div>`;
     }
     if (k === w.playerLiege()) {
       const d = w.playerDynasty();

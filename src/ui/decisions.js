@@ -5,6 +5,7 @@ import { EDUCATION } from '../player.js';
 import { APTITUDES, EXAMINE_COST, GOALS } from '../goals.js';
 import { TRAIT_LABEL } from '../fostering.js';
 import { rebellionHTML, rebellionTitle } from './rebellionView.js';
+import { warHTML } from './warView.js';
 import { LOCUS } from '../genes.js';
 import { HAIR_LABEL, EYE_LABEL } from '../genes.js';
 import { kinshipLabel } from '../pedigree.js';
@@ -50,8 +51,8 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d) }[d.type]();
-    const label = { rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d), war: () => this._war(w, d) }[d.type]();
+    const label = { war: '⚔ 戦争', rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
@@ -79,6 +80,21 @@ export class DecisionPanel {
       ${rebellionHTML(w, war, role)}
       <p class="small muted">あとからでも、王国タブの「内乱への対処」で同じ手を打てます。反乱軍の領地は地図で赤い斜線になります。</p>
       <p class="choices"><button type="button" data-id="${d.id}" data-choice="ok">${role === 'vassal' ? '様子を見る（閉じる）' : '閉じる'}</button></p>
+    </div>`;
+  }
+
+  // ───────── 攻められた ─────────
+
+  _war(w, d) {
+    const war = w.wars.find((x) => x.id === d.warId);
+    if (!war || war.ended) return `<div class="decision"><div class="eyebrow">⚔ 戦争</div><h2>この戦争はもう終わりました</h2><p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="ok">閉じる</button></p></div>`;
+    const A = w.kingdoms[war.attackerId];
+    return `<div class="decision">
+      <div class="eyebrow">⚔ ${esc(war.name)}</div><h2>${esc(A.name)}が攻めてきました</h2>
+      <p>${richText(w, `${w.pn(w.ruler(A))} が${war.kind === 'claim' ? ` ${w.pn(w.get(war.claimantId))} の王位の請求権を掲げて` : ''}宣戦した。`)}${war.defenderAllies.length ? `${war.defenderAllies.map((a) => esc(w.kingdoms[a].name)).join('・')}が同盟に従い、こちらに加勢する。` : ''}${war.attackerAllies.length ? `${war.attackerAllies.map((a) => esc(w.kingdoms[a].name)).join('・')}は相手についた。` : ''}</p>
+      ${warHTML(w, war)}
+      <p class="small muted">あとからでも、王国タブの「戦争中」や、画面上部の帯の「対処する」で同じ手を打てます。</p>
+      <p class="choices"><button type="button" data-id="${d.id}" data-choice="ok">閉じる</button></p>
     </div>`;
   }
 

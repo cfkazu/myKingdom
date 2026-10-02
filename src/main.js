@@ -76,6 +76,15 @@ class App {
       if (msg) this.toast(msg);
       this.renderAll();
     });
+    // 他国との戦争の手と、同盟の破棄
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-war-act],[data-break]');
+      if (!b || b.disabled) return;
+      e.stopPropagation();
+      const msg = b.dataset.break != null ? this.world.breakAlliance(Number(b.dataset.break)) : this.world.warAction(Number(b.dataset.warId), b.dataset.warAct);
+      if (msg) this.toast(msg);
+      this.renderAll();
+    });
     // 地方の名前のボタン：地図でその地方を光らせる（決断カードの中はカードの側で受ける）
     document.addEventListener('click', (e) => {
       const b = e.target.closest('[data-flash]');
@@ -333,10 +342,16 @@ class App {
     this.showTab('person');
   }
 
-  // 内乱中なら、戦況と「対処する」
+  // 内乱・戦争中なら、戦況と「対処する」。王で戦がなければ「宣戦する」
   _rebelBar(w, d) {
     if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
-    return w
+    const pk = w.playerKingdom();
+    const ext = w.externalWars().map((war) => {
+      const v = w.warView(war);
+      return `<div class="lands-bar small">⚔ <b>戦争中：${war.name}</b>　戦況 ${Math.round(v.score)}（${v.score >= 30 ? 'こちらが優勢' : v.score <= -30 ? '相手が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${pk.id}">対処する</button></div>`;
+    });
+    const idle = pk && !ext.length && !w.realmRebellions().length ? `<div class="lands-bar small">⚔ 戦争はしていません <button type="button" class="small" data-gorealm="${pk.id}">宣戦・同盟を見る</button></div>` : '';
+    return ext.join('') + idle + w
       .realmRebellions()
       .map((war) => `<div class="lands-bar small bad">🔥 <b>内乱中：${war.name}</b>　戦況 ${Math.round(war.score)}（${war.score <= -30 ? '王が優勢' : war.score >= 30 ? '反乱軍が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${war.defenderId}">対処する</button></div>`)
       .join('');

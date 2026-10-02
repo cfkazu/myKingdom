@@ -1628,3 +1628,6 @@ select:focus-visible {
   border-radius: 6px;
   background: color-mix(in srgb, var(--gold) 14%, var(--surface));
 }
+.war-bar {
+  background: linear-gradient(90deg, #2f9e5b 0%, #e9e1c8 50%, #c0392b 100%);
+}

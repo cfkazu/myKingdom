@@ -19,6 +19,7 @@ import { MatchMixin } from './matchmaking.js';
 import { NewsMixin } from './news.js';
 import { FosterMixin } from './fostering.js';
 import { RebellionMixin } from './rebellion.js';
+import { WarfareMixin } from './warfare.js';
 
 export const ADULT = 16;
 
@@ -1301,7 +1302,9 @@ export class World {
       if (!w || !w.alive) continue;
       const a = this.royalOf(p);
       const b = this.royalOf(w);
-      if (a && b && a !== b && a.alive && b.alive) this.alliances.add(a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`);
+      const key = a && b ? (a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`) : null;
+      // 破棄された同盟は、しばらく結び直されない
+      if (key && a !== b && a.alive && b.alive && !(this.brokenAlliances?.get(key) > this.year)) this.alliances.add(key);
     }
   }
 
@@ -1469,7 +1472,9 @@ export class World {
       return base * (w.mercs != null && this.year <= w.mercs ? 1.35 : 1);
     }
     const allies = side === 'A' ? w.attackerAllies : w.defenderAllies;
-    return this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.5, 0);
+    const base = this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.5, 0);
+    // 傭兵を雇った側は、3 年のあいだ 35% 増し
+    return base * (w.mercs != null && this.year <= w.mercs && w.mercSide === side ? 1.35 : 1);
   }
 
   _warsStep() {
@@ -1967,4 +1972,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin, RebellionMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin, RebellionMixin, WarfareMixin);
