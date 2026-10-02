@@ -31,13 +31,13 @@ export const FosterMixin = {
       .filter(([, v]) => Math.abs(v) >= 2);
   },
 
+  // 後見人にふさわしい大人：よその家の、25〜65 歳の正気の人から、score がいちばん高い人
   _bestAdult(filter, score) {
     let best = null;
     let bestS = -Infinity;
-    for (const d of this.dynasties) {
-      if (d.extinct) continue;
-      const h = this.head(d);
-      if (!h || !h.alive || h.mad || this.age(h) < 25 || this.age(h) > 65 || !filter(h, d)) continue;
+    for (const h of this.living) {
+      const d = this.dyn(h);
+      if (!d || !h.alive || h.mad || h.imprisoned || h.cloistered || this.age(h) < 25 || this.age(h) > 65 || !filter(h, d)) continue;
       const s = score(h);
       if (s > bestS) {
         bestS = s;
@@ -54,6 +54,7 @@ export const FosterMixin = {
     const pk = this.playerKingdom();
     const realm = pk ?? this.playerLiege();
     const opts = [];
+    const missing = [];
     const used = new Set();
     const best2 = (t) => [...SKILLS].sort((a, b) => t.pheno[b] - t.pheno[a]).slice(0, 2);
     // 1. 家で育てる：当主（当主が親なら、もう一方の親でもよい）
@@ -66,13 +67,14 @@ export const FosterMixin = {
     const other = (h, d) => d.id !== my.id && !used.has(h.id) && (!realm || h.kingdomId === realm.id || d.kingdomId === realm.id);
     // 2. 名将に預ける
     const general = this._bestAdult(other, (h) => this.martial(h));
-    if (general) {
+    if (general && this.martial(general) >= 62) {
       used.add(general.id);
-      opts.push({ key: 'general', icon: '⚔️', label: '名将に預ける', tutorId: general.id, gains: this._learn(general, [['strength', 1.1], ['charisma', 0.3]]), side: `${this.dyn(general).name}家と縁ができる。後見人の気性もうつる` });
-    }
+      opts.push({ key: 'general', icon: '⚔️', label: '名将に預ける', tutorId: general.id, gains: this._learn(general, [['strength', 1], ['intellect', 0.35], ['charisma', 0.35]]), side: `体と戦の指揮（知略・カリスマ）を鍛える。${this.dyn(general).name}家と縁ができ、後見人の気性もうつる` });
+    } else missing.push('名将（指揮 62 以上の人が国にいない）');
     // 3. 賢者に預ける
     const sage = this._bestAdult(other, (h) => h.pheno.intellect + this.stewardship(h) * 0.3);
-    if (sage) {
+    if (sage && sage.pheno.intellect < 68) missing.push('賢者（知略 68 以上の人が国にいない）');
+    if (sage && sage.pheno.intellect >= 68) {
       used.add(sage.id);
       opts.push({ key: 'sage', icon: '📜', label: '賢者に預ける', tutorId: sage.id, gains: this._learn(sage, [['intellect', 1.1], ['charisma', 0.3]]), side: `${this.dyn(sage).name}家と縁ができる。後見人の気性もうつる` });
     }
@@ -84,6 +86,7 @@ export const FosterMixin = {
       ks.sort((a, b) => Number(this.allied(b.id, pk.id)) - Number(this.allied(a.id, pk.id)) || this.provincesOf(b).length - this.provincesOf(a).length);
       court = ks.length ? this.ruler(ks[0]) : null;
     }
+    if (!court) missing.push(pk ? '隣国の宮廷（戦をしていない隣国がない）' : '王の宮廷（主君がいない）');
     if (court && !used.has(court.id) && court.dynastyId !== my.id) {
       const k = this.kingdoms[court.rulerOf];
       const kids = this.living.filter((p) => p.alive && p.dynastyId === court.dynastyId && Math.abs(this.age(p) - this.age(child)) <= 4 && p !== child);
@@ -109,7 +112,8 @@ export const FosterMixin = {
       }
     }
     // 6. 修道院
-    opts.push({ key: 'cloister', icon: '⛪', label: '修道院で学ばせる', tutorId: null, gains: { kindness: 1.2, intellect: 0.6, ambition: -0.9 }, side: '情け深く欲の少ない子になる。継承争いや陰謀を起こしにくい' });
+    opts.push({ key: 'cloister', icon: '⛪', label: '修道院で学ばせる', tutorId: null, gains: { kindness: 1.2, intellect: 0.6, ambition: -0.9 }, side: '情け深く欲の少ない子になる。ただし 2 割ほどは、16 歳でそのまま修道院に残ると言い出す（継承と縁談から外れる）' });
+    opts.missing = missing;
     return opts;
   },
 
@@ -121,7 +125,12 @@ export const FosterMixin = {
       if (!p.alive || p.dynastyId !== d.id || this.age(p) !== 6 || p.foster || p.education) continue;
       if (!this.playerControls(p) || p.imprisoned || p.cloistered) continue;
       // 当主の子と跡継ぎの子は、養育先を選ぶ（ほかの一族は家で育てる）
-      if (!p.passedOver && (this._mainLine(p, d, heir) || [p.fatherId, p.motherId].includes(this.head(d)?.id))) this._decision({ type: 'foster', personId: p.id, options: this.fosterOptions(p).map((o) => ({ ...o, heir: true })) });
+      const main = this._mainLine(p, d, heir);
+      const child = [p.fatherId, p.motherId].includes(this.head(d)?.id);
+      if (!p.passedOver && (main || (child && !this.player.fosterAuto))) {
+        const opts = this.fosterOptions(p);
+        this._decision({ type: 'foster', personId: p.id, main, options: opts.map((o) => ({ ...o, heir: true })), missing: opts.missing });
+      }
       else {
         const home = this.fosterOptions(p).find((o) => o.key === 'home');
         if (home) this._setFoster(p, home);
@@ -174,6 +183,15 @@ export const FosterMixin = {
       for (const [t, v] of Object.entries(f.gains)) p.env[t] = (p.env[t] ?? 0) + v * w;
       p.pheno = express(p.genome, p.env);
       p.education = f.key;
+      // 修道院で育った子は、そのまま残ると言い出すことがある
+      let stayed = false;
+      if (f.key === 'cloister' && this.rng.chance(0.2)) {
+        stayed = true;
+        p.cloistered = true;
+        this.headCache?.delete(p.dynastyId);
+        for (const k of this.kingdoms) if (k.heirId === p.id) k.heirId = null;
+        this._deed(p, 'cloister', '修道院に残り、信仰に生きると決める');
+      }
       if (!this.isPlayerHouse(p) || (f.key === 'home' && !f.heir)) continue;
       const lines = Object.keys(f.gains)
         .map((t) => [t, Math.round(p.pheno[t] - before[t])])
@@ -182,13 +200,28 @@ export const FosterMixin = {
           const apt = t === 'ambition' || t === 'kindness' ? null : this.aptitude(p, t);
           return `${TRAIT_LABEL[t]} ${Math.round(p.pheno[t])}（育ちで ${v > 0 ? '+' : ''}${v}${apt ? `・生まれの素質 ＋${apt.plus}/${apt.copies}` : ''}）`;
         });
-      const friends = (p.friendIds ?? []).map((id) => this.get(id)).filter((x) => x && x.alive && x.spouseId == null);
+      // 幼なじみのうち、縁談で有望な人（王・継承者・魅力の高い人）を 2 人まで
+      const friends = (p.friendIds ?? [])
+        .map((id) => this.get(id))
+        .filter((x) => x && x.alive && x.spouseId == null && x.sex !== p.sex)
+        .sort((a, b) => (b.rulerOf != null) - (a.rulerOf != null) || !!this.isHeirAnywhere(b) - !!this.isHeirAnywhere(a) || this.charm(b) - this.charm(a))
+        .slice(0, 2);
+      const after = [];
+      if (stayed) after.push(`${p.name}は修道院に残り、信仰に生きると決めた。継承と縁談から外れる。`);
+      if (f.key === 'feud' && tutor) {
+        const fd = this.dyn(tutor);
+        const my = this.dyn(p);
+        const left = fd && my ? Math.round(Math.max(this.grudgeAgainst(my, fd.id), this.grudgeAgainst(fd, my.id))) : 0;
+        after.push(left < 1 ? `${fd?.name ?? ''}家との因縁は、もう消えた。` : `${fd?.name ?? ''}家との因縁は和らいだ（恨みの強さ ${left}）。`);
+      }
+      if (friends.length) after.push(`幼なじみ：${friends.map((x) => `${x.name}（${x.rulerOf != null ? '君主' : this.isHeirAnywhere(x) ? '継承者' : `魅力 ${Math.round(this.charm(x))}`}）`).join('・')}。縁談の候補に出れば「幼なじみ」の縁がつく。`);
+      const isHeir = this.houseHeir(this.dyn(p)) === p;
       this._news({
         icon: '🎓',
         title: `${p.name}が成人した（${f.label.replace(/^(.*?)(に預ける|に出す|で学ばせる|で育てる)$/, '$1')}${tutor && f.key !== 'cloister' ? `・後見 ${tutor.name}` : ''}）`,
         body: `${lines.join('、') || '目立った変化はなかった'}。${note}`,
         why: '能力は、生まれ持った遺伝子（素質）に、育ちが上乗せされたものです。子に伝わるのは素質のほうだけ。',
-        means: friends.length ? `${friends.map((x) => x.name).join('・')}とは幼なじみ。縁談の候補に出れば「幼なじみ」の縁がつきます。` : '跡継ぎとしての器が決まりました。',
+        means: `${after.join('')}${isHeir ? '跡継ぎとしての器が決まりました。' : ''}` || '家の一員として、縁談の年ごろを迎えました。',
         pids: [],
       });
     }

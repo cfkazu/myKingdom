@@ -212,6 +212,8 @@ export class DecisionPanel {
       <div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">🏡 養育先</div><h2>${w.houseHeir(w.playerDynasty()) === p ? "跡継ぎの " : ""}${esc(p.name)}（6歳）を、どこで育てますか？</h2>
       <p class="small muted">子は後見人の得意から学び、気性も後見人に似ます。16 歳で成人すると、育ちの結果が報せで届きます。子に伝わるのは生まれ持った素質（${esc(apt)}）のほうで、育ちは伝わりません。</p>${this._goalHint(w)}</div></div>
       <div class="opts">${opts}</div>
+      ${(d.missing ?? []).length ? `<p class="small muted">いまは選べない養育先：${esc(d.missing.join('、'))}</p>` : ''}
+      ${!d.main ? `<p class="choices"><button type="button" class="small" data-id="${d.id}" data-choice="autohome" title="跡継ぎと、当主・跡継ぎの長子だけカードを出し、ほかの子は家で育てます">この子は家で育て、これから跡継ぎ以外は自動で家で育てる</button></p>` : ''}
     </div>`;
   }
 

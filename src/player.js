@@ -208,6 +208,8 @@ export const PlayerMixin = {
     if (d.type === 'foster') {
       const p = this.get(d.personId);
       if (!p.alive) return null;
+      // 「跡継ぎ以外は、これから家で育てる」
+      if (choice === 'autohome') this.player.fosterAuto = true;
       const o = d.options.find((x) => x.key === choice) ?? d.options.find((x) => x.key === 'home') ?? d.options[0];
       this._setFoster(p, o);
       const t = o.tutorId != null ? this.get(o.tutorId) : null;

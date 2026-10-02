@@ -245,7 +245,7 @@ export class MapView {
           if (sel != null && w.provinces[id].ownerId !== sel) rgb = lerpRgb(rgb, [200, 196, 186], 0.45);
           // 遊んでいるときは、自分の領地を金色寄りに、ほかの家の領地を少し淡く
           if (mine.has(id)) rgb = lerpRgb(rgb, gold, 0.22);
-          else if (playing && this.mode !== 'kingdom') rgb = lerpRgb(rgb, [214, 208, 196], 0.22);
+          else if (playing && this.mode !== 'kingdom') rgb = lerpRgb(rgb, [214, 208, 196], this.mode === 'county' ? 0.38 : 0.22);
         }
         const hatch = id >= 0 && rebel(w.provinces[id]);
         for (let py = 0; py < CELL; py++) {
@@ -480,7 +480,7 @@ export class MapView {
       const pulse = this.reduced ? 0.5 : 0.35 + 0.25 * (0.5 + 0.5 * Math.sin(now / 160));
       // 失った地方は赤、得た地方・自分の領地は金、そのほかは赤みの橙
       // 失った地方は赤、得た地方は緑、自分の領地は白っぽい金（金の外周線と見分けるため）
-      const rgb = { lost: '220,40,40', gain: '40,170,80', mine: '255,236,150' }[this.flashes.kind] ?? '230,80,30';
+      const rgb = { lost: '220,40,40', gain: '0,190,215', mine: '255,236,150' }[this.flashes.kind] ?? '230,80,30';
       ctx.fillStyle = `rgba(${rgb},${pulse})`;
       const set = new Set(this.flashes.pids);
       for (const pid of this.flashes.pids) for (const i of this.cellsOf[pid] ?? []) ctx.fillRect((i % W) * CELL, Math.floor(i / W) * CELL, CELL, CELL);
