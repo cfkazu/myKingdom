@@ -22,9 +22,10 @@ export function warHTML(w, war) {
     <p class="small reb-tip">${tip}</p>
     <div class="reb-acts">
       ${btn('mercs', `💰 傭兵を雇う（家格 −${MERC_COST}）`, v.mercs || prestige < MERC_COST, '3 年のあいだ、こちらの兵力が 35% 増える')}
-      ${btn('battle', '⚔ 決戦を挑む', war.pitched === w.year, '今年もう一度会戦する。勝てば戦況が進み、負ければ戻る')}
+      ${btn('battle', war.pitched === w.year ? '⚔ 決戦（今年は済み）' : '⚔ 決戦を挑む', war.pitched === w.year, '今年もう一度会戦する（1 年に 1 回まで）。勝てば戦況が進み、負ければ戻る')}
       ${v.main ? btn('demand', '🏆 勝ちを認めさせる', v.score < 50, '戦況が +50 を超えていれば、相手はすぐ負けを認める') : ''}
       ${v.main ? btn('peace', peaceCost ? `🤝 和平を申し入れる（賠償 家格 −${peaceCost}）` : '🤝 和平を申し入れる（白紙）', peaceCost > prestige, '領土は動かさずに戦を終える。戦況が −20 より悪いと賠償が要る') : ''}
+      ${v.main ? '' : '<span class="small muted">加勢している戦争は、主の国どうしが終わらせます（和平・勝ちを認めさせる・降伏は選べません）</span>'}
       ${v.main ? btn('surrender', '🏳 降伏する', false, '負けを認めて戦を終える。攻めた側なら地方を失うこともある', true) : ''}
     </div>
     <p class="small muted">勝てば${v.side === 'A' ? (war.kind === 'claim' ? '請求者が王位に就きます' : '国境の地方を奪えます') : '相手から地方を奪えることがあります'}。負ければ${v.side === 'D' ? (war.kind === 'claim' ? '王位を追われます' : '国境の地方を割譲します') : '地方を失うことがあります'}。7 年たつと戦況で決着します。いまの家格 ${prestige}。</p>`;

@@ -20,6 +20,8 @@ import { NewsMixin } from './news.js';
 import { FosterMixin } from './fostering.js';
 import { RebellionMixin } from './rebellion.js';
 import { WarfareMixin } from './warfare.js';
+import { FavorsMixin } from './favors.js';
+import { AmbitionsMixin } from './ambitions.js';
 
 export const ADULT = 16;
 
@@ -531,6 +533,7 @@ export class World {
     this._goalTick();
     this._playerEvents();
     this._fosterTick();
+    this._ambitionTick();
     this._flushNews();
     this._record();
   }
@@ -747,7 +750,7 @@ export class World {
     const list = [...cands];
     const votes = new Map(list.map((c) => [c.id, 0]));
     const base = (c) =>
-      this.stewardship(c) * 0.4 + this.martial(c) * 0.3 + this.charm(c) * 0.3 + Math.min(40, (this.dyn(c)?.prestige ?? 0) * 0.1) - Math.max(0, this.age(c) - 50) * 2;
+      this.stewardship(c) * 0.4 + this.martial(c) * 0.3 + this.charm(c) * 0.3 + Math.min(40, (this.dyn(c)?.prestige ?? 0) * 0.3) - Math.max(0, this.age(c) - 50) * 2;
     for (const e of electors) {
       let best = null;
       let bestS = -Infinity;
@@ -1038,7 +1041,7 @@ export class World {
     else if (cRoyal) political += 28;
     else if (this.isHeirAnywhere(c)) political += 30;
     const cd = this.dyn(c);
-    political += Math.min(30, (cd ? cd.prestige : 0) * 0.12);
+    political += Math.min(30, (cd ? cd.prestige : 0) * 0.3);
     if (c.lowborn) political -= 25;
     if (sRoyal && cRoyal && sRoyal !== cRoyal && !this.allied(sRoyal.id, cRoyal.id)) political += 18;
     // 王族は王族と結婚したがる（王家どうしで血が行き来し、やがて王家どうしが親戚になる）
@@ -1883,14 +1886,21 @@ export class World {
 
   // ───────── 後片づけと記録 ─────────
 
+  // 家格の年収：王 2.5、公爵 1、伯爵は伯爵領 1 つにつき 0.3
+  prestigeIncome(d) {
+    if (this.kingdoms.some((k) => k.alive && this.ruler(k)?.dynastyId === d.id)) return 2.5;
+    const r = this.houseRank(d);
+    return r === 'duke' ? 1 : r === 'count' ? 0.3 * this.countiesOf(d.id).length : 0;
+  }
+
   _housekeeping() {
     this.living = this.living.filter((p) => p.alive);
     const livingByDyn = new Map();
     for (const p of this.living) if (p.dynastyId != null) livingByDyn.set(p.dynastyId, (livingByDyn.get(p.dynastyId) ?? 0) + 1);
     for (const d of this.dynasties) {
       if (d.extinct) continue;
-      d.prestige *= 0.985;
-      if (this.kingdoms.some((k) => k.alive && this.ruler(k)?.dynastyId === d.id)) d.prestige += 4;
+      // 家格：身分に応じた細い収入と、年 2.5% の目減り（王は 100 前後、公爵は 40 前後で釣り合う）
+      d.prestige = d.prestige * 0.975 + this.prestigeIncome(d);
       if (!livingByDyn.get(d.id)) {
         d.extinct = true;
         d.extinctYear = this.year;
@@ -1978,4 +1988,4 @@ export class World {
   }
 }
 
-Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin, RebellionMixin, WarfareMixin);
+Object.assign(World.prototype, FeudalMixin, PlayerMixin, EventsMixin, GoalsMixin, LedgerMixin, MatchMixin, NewsMixin, FosterMixin, RebellionMixin, WarfareMixin, FavorsMixin, AmbitionsMixin);

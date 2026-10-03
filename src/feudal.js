@@ -326,7 +326,9 @@ export const FeudalMixin = {
         const rebel = (d.memory ?? []).some((m) => /反乱/.test(m.why) && this.year - m.year < 40) || d.rebelYear > this.year - 40;
         // 同じ公爵領にすでに土地を持つ家は、まとめて持たせる（公爵が育つ）
         const sameDuchy = this.countiesOf(d.id).some((c) => c.duchyId === pr.duchyId) ? 28 : 0;
-        const s = sameDuchy + (rebel ? -80 : 0) + (n === 0 ? 30 : -n * 12) + (d.opinion ?? 0) * 0.4 + Math.min(20, d.prestige * 0.1) + 60 * this.ped.kinship(h.id, r?.id) + this.martial(h) * 0.15 + this.rng.next() * 15;
+        // 王に献上した家は、恩賞で選ばれやすい
+        const favor = (d.favorUntil ?? 0) > this.year ? 45 : 0;
+        const s = favor + sameDuchy + (rebel ? -80 : 0) + (n === 0 ? 30 : -n * 12) + (d.opinion ?? 0) * 0.4 + Math.min(20, d.prestige * 0.25) + 60 * this.ped.kinship(h.id, r?.id) + this.martial(h) * 0.15 + this.rng.next() * 15;
         if (s > bestS) {
           bestS = s;
           best = d;

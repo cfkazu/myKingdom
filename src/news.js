@@ -80,7 +80,7 @@ export const NewsMixin = {
       icon: '⚔️',
       title: attacked ? `${other.name}が攻めてきた：${w.name}` : `戦が始まった：${w.name}`,
       body: attacked
-        ? `${this.kn(other)} の ${this.pn(this.ruler(other))} が${w.kind === 'claim' ? ` ${this.pn(this.get(w.claimantId))} の王位の請求権を掲げて` : ''}宣戦した。兵力の比は こちら ${ratio.toFixed(1)} 対 1。`
+        ? `${this.kn(other)} の ${this.pn(this.ruler(other))} が${w.kind === 'claim' ? (w.claimantId === this.ruler(other)?.id ? ' 自らの王位の請求権を掲げて' : ` ${this.pn(this.get(w.claimantId))} の王位の請求権を掲げて`) : ''}宣戦した。兵力の比は こちら ${ratio.toFixed(1)} 対 1。`
         : `${this.kn(mine)} は ${this.kn(other)} に宣戦した。兵力の比は こちら ${ratio.toFixed(1)} 対 1。`,
       why: w.kind === 'claim' ? '王位の請求権を持つ人がいると、その国に継承戦争を仕掛けられます。' : '野心的な王は、弱く見える隣国を攻めます。',
       means:

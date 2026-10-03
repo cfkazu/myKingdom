@@ -5,6 +5,7 @@ import { esc, personLink, kingdomLink, richText } from './util.js';
 import { FACTION_LABEL } from '../feudal.js';
 import { rebellionHTML, rebellionTitle } from './rebellionView.js';
 import { warHTML, previewHTML } from './warView.js';
+import { FEAST_COST, TRIBUTE_COST } from '../favors.js';
 
 const HOW = { inherit: '世襲', elected: '選挙', conquest: '征服', usurp: '簒奪', independence: '独立', init: '世襲' };
 const KIND = { conquest: '征服戦争', claim: '継承戦争', civil: '内乱', independence: '独立戦争' };
@@ -26,7 +27,7 @@ export class RealmPanel {
 
   // プレイヤーの国なら宣戦、主君の国なら反乱のボタン
   _actions(w, k) {
-    return this._rebellions(w, k) + this._actions2(w, k);
+    return this._rebellions(w, k) + this._actions2(w, k) + this._favors(w, k);
   }
 
   // 内乱への対処（あなたの国で反乱が起きているとき）
@@ -39,6 +40,27 @@ export class RealmPanel {
         return `<div class="actions reb-panel"><h3>🔥 内乱への対処：${esc(war.name)}</h3><p class="small">${rebellionTitle(w, war)}</p>${rebellionHTML(w, war, role)}</div>`;
       })
       .join('');
+  }
+
+  // 家格の使い道（王なら自国、諸侯なら主君の国で）
+  _favors(w, k) {
+    if (!w.player || w.player.over) return '';
+    const king = w.playerKingdom()?.id === k.id;
+    if (!king && w.playerLiege()?.id !== k.id) return '';
+    const my = w.playerDynasty();
+    const pr = Math.round(my.prestige);
+    const inc = w.prestigeIncome(my);
+    const b = (act, arg, label, cost, title, disabled = false) => `<button type="button" class="small${cost <= pr && !disabled ? ' primary' : ''}" data-favor="${act}" data-favor-arg="${arg ?? ''}"${cost > pr || disabled ? ' disabled' : ''} title="${esc(title)}">${label}</button>`;
+    const buys = w.buyableCounties();
+    const fabs = king ? w.fabricateTargets() : [];
+    return `<div class="actions"><h3>🎖 家格の使い道（いま ${pr}・年 +${inc.toFixed(1)}、毎年 2.5% 目減り）</h3>
+      <p class="small muted">家格は貯めても目減りします。使って家を大きくしましょう。鑑定・高嶺の花・傭兵・切り崩しにも使います。</p>
+      <div class="reb-acts">
+        ${king ? b('feast', '', `🎉 祝宴を開く（−${FEAST_COST}）`, FEAST_COST, '諸侯みなの忠誠 +15（5 年に 1 度まで）', k.feastYear != null && w.year - k.feastYear < 5) : b('tribute', '', `🎁 王に献上する（−${TRIBUTE_COST}）`, TRIBUTE_COST, '15 年のあいだ、王の恩賞で伯爵領を賜りやすくなる', (my.favorUntil ?? 0) > w.year)}
+      </div>
+      ${buys.length ? `<div class="small"><b>💰 伯爵領を買い取る</b>${king ? '（王領になる）' : '（あなたの所領になる。同じ公爵領の過半を持てば公爵に）'}</div><div class="chips small">${buys.map((o) => `<span>${esc(o.pr.name)}<span class="muted">（${o.crown ? '王領' : `${esc(o.d.name)}家`}${o.near ? '・隣' : ''}）</span>${b('buy', o.pr.id, `−${o.price}`, o.price, `${o.d.name}家から${o.pr.name}伯領を買う。売り手は家格の半分を受け取る`)}</span>`).join('')}</div>` : '<p class="small muted">いま買い取れる伯爵領はありません（売り手は 2 つ以上持つ家だけ）。</p>'}
+      ${fabs.length ? `<div class="small"><b>📜 請求権を捏造する</b>（その国に継承戦争を起こせるようになる）</div><div class="chips small">${fabs.map((o) => `<span>${esc(o.t.name)}${b('fab', o.t.id, `−${o.price}`, o.price, `${o.t.name}の王位への請求権を得る。継承戦争に勝てば王位が手に入る`)}</span>`).join('')}</div>` : ''}
+    </div>`;
   }
 
   _actions2(w, k) {

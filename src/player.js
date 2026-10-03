@@ -29,6 +29,7 @@ export const PlayerMixin = {
     this.player = { dynastyId: dynId, startYear: this.year, decisions: [], nextId: 1, asked: new Map(), joined: null, over: false, peak: this.houseStanding(d), examined: new Set(), achievements: [], goal: null };
     const h = this.head(d);
     this.addLog('event', `あなたは ${d.name}家の当主 ${h ? this.pn(h) : ''} として歴史に加わった。`, h && h.kingdomId != null ? [h.kingdomId] : []);
+    this._initAmbitions();
     this._goalDecision();
   },
 

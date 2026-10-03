@@ -292,3 +292,43 @@ test("戦争：宣戦の見込みが出て、傭兵・和平・降伏で手を�
   w._updateAlliances();
   assert.ok(!w.allied(k.id, o.id), "破棄した同盟がすぐ結び直された");
 });
+
+test("家格の使い道と野望：伯爵領を買い取り、祝宴・献上・請求権の捏造ができ、野望を果たすと★が増える", () => {
+  const w = new World({ seed: "favor-1" });
+  // 諸侯の家：買い取りと献上
+  const lord = w.dynasties.find((d) => w.houseRank(d) === "count" && w.buyableCounties && w.countiesOf(d.id).length === 1);
+  w.setPlayer(lord.id);
+  for (const d of [...w.pendingDecisions()]) w.decide(d.id, "none");
+  assert.ok(w.player.ambitions.some((a) => a.key === "counts3"), "伯爵家の野望に「伯爵領を 3 つ」がない");
+  lord.prestige = 500;
+  const buys = w.buyableCounties();
+  if (buys.length) {
+    const o = buys[0];
+    w.buyCounty(o.pr.id);
+    assert.equal(o.pr.holder, lord.id, "買い取った伯爵領が自分のものにならない");
+  }
+  w.tribute();
+  assert.ok(lord.favorUntil > w.year);
+  // 野望：伯爵領を 3 つにすると果たされる
+  while (w.countiesOf(lord.id).length < 3) {
+    const pr = w.provinces.find((p) => p.ownerId === lord.kingdomId && p.holder !== lord.id && w.isDemesne(p));
+    if (!pr) break;
+    pr.holder = lord.id;
+  }
+  if (w.countiesOf(lord.id).length >= 3) {
+    w._ambitionTick();
+    assert.ok(w.player.ambitions.find((a) => a.key === "counts3").done != null);
+    assert.ok(w.score().stars >= 1);
+  }
+  // 王家：祝宴と請求権の捏造
+  const w2 = new World({ seed: "favor-2" });
+  const k = w2.aliveKingdoms().find((x) => w2.neighbors(x).length);
+  w2.setPlayer(w2.ruler(k).dynastyId);
+  w2.playerDynasty().prestige = 500;
+  w2.feast();
+  assert.equal(k.feastYear, w2.year);
+  const t = w2.fabricateTargets()[0];
+  w2.fabricate(t.t.id);
+  assert.ok(w2.playerHead().claims.includes(t.t.id));
+  assert.ok(w2.warTargets(k).some((x) => x.kind === "claim" && x.t === t.t), "捏造した請求権で継承戦争を起こせない");
+});

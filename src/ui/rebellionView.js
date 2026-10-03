@@ -30,7 +30,7 @@ export function rebellionHTML(w, war, role) {
       <p class="small reb-tip">${tip}</p>
       <div class="reb-acts">
         ${btn('mercs', `💰 傭兵を雇う（家格 −${MERC_COST}）`, s.mercs ? 1e9 : MERC_COST, '3 年のあいだ、王の兵力が 35% 増える')}
-        ${btn('battle', '⚔ 決戦を挑む', null, '今年もう一度会戦する。勝てば戦況が王に傾き、負ければ反乱軍に傾く。兵力の比が悪いときは危ない')}
+        ${war.pitched === w.year ? '<button type="button" disabled title="決戦は 1 年に 1 回まで">⚔ 決戦（今年は済み）</button>' : btn('battle', '⚔ 決戦を挑む', null, '今年もう一度会戦する（1 年に 1 回まで）。勝てば戦況が王に傾き、負ければ反乱軍に傾く。兵力の比が悪いときは危ない')}
         ${btn('concede', war.kind === 'independence' ? `🏳 独立を認める（家格 −${CONCEDE_COST}）` : `📜 譲歩して和睦する（家格 −${CONCEDE_COST}）`, CONCEDE_COST, war.kind === 'independence' ? '地方は離れるが、戦はすぐ終わる' : '王領を一つ盟主の家に与え、戦を終わらせる。反乱した家は罰を受けない')}
       </div>
       <h3 class="small">反乱軍の家（切り崩すと、その家の兵が反乱軍から消える）</h3>

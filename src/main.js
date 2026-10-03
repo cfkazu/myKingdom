@@ -76,6 +76,18 @@ class App {
       if (msg) this.toast(msg);
       this.renderAll();
     });
+    // 家格の使い道
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-favor]');
+      if (!b || b.disabled) return;
+      e.stopPropagation();
+      const w = this.world;
+      const arg = b.dataset.favorArg === '' ? null : Number(b.dataset.favorArg);
+      const msg = { feast: () => w.feast(), tribute: () => w.tribute(), buy: () => w.buyCounty(arg), fab: () => w.fabricate(arg) }[b.dataset.favor]?.();
+      if (msg) this.toast(msg);
+      this.map.draw();
+      this.renderAll();
+    });
     // 他国との戦争の手と、同盟の破棄
     document.addEventListener('click', (e) => {
       const b = e.target.closest('[data-war-act],[data-break]');
@@ -301,6 +313,8 @@ class App {
   // プレイヤーの行い（宣戦・没収・反乱）
   act(kind, a, b) {
     const w = this.world;
+    // 自分の行い（宣戦など）のあとは、勝手に再生を始めない
+    this.resumeAfterDecision = false;
     if (kind === 'war') w.playerDeclareWar(a, b);
     if (kind === 'revoke') w.playerRevoke(a);
     if (kind === 'rebel') w.playerRebel(a);
@@ -351,7 +365,12 @@ class App {
       return `<div class="lands-bar small">⚔ <b>戦争中：${war.name}</b>　戦況 ${Math.round(v.score)}（${v.score >= 30 ? 'こちらが優勢' : v.score <= -30 ? '相手が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${pk.id}">対処する</button></div>`;
     });
     const idle = pk && !ext.length && !w.realmRebellions().length ? `<div class="lands-bar small">⚔ 戦争はしていません <button type="button" class="small" data-gorealm="${pk.id}">宣戦・同盟を見る</button></div>` : '';
-    return ext.join('') + idle + w
+    const realm = pk ?? w.playerLiege();
+    const purse = realm ? `<div class="lands-bar small">🎖 家格 <b>${Math.round(d.prestige)}</b>（年 +${w.prestigeIncome(d).toFixed(1)}・毎年 2.5% 目減り）<button type="button" class="small" data-gorealm="${realm.id}">使い道を見る</button></div>` : '';
+    const next = w.nextAmbition();
+    const sc = w.score();
+    const amb = next ? `<div class="lands-bar small">🏆 <b>野望：${next.icon} ${next.label}</b>　${w.ambitionProgress(next.key)}<span class="muted">（${next.hint}）</span><span class="stars" title="★＝果たした野望 ${sc.done}/${sc.total} ＋ 血の目標 ${sc.goals}">★${sc.stars}</span></div>` : `<div class="lands-bar small">🏆 すべての野望を果たした！ <span class="stars">★${sc.stars}</span></div>`;
+    return amb + purse + ext.join('') + idle + w
       .realmRebellions()
       .map((war) => `<div class="lands-bar small bad">🔥 <b>内乱中：${war.name}</b>　戦況 ${Math.round(war.score)}（${war.score <= -30 ? '王が優勢' : war.score >= 30 ? '反乱軍が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${war.defenderId}">対処する</button></div>`)
       .join('');

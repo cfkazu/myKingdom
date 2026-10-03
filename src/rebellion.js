@@ -35,7 +35,7 @@ export const RebellionMixin = {
   },
 
   peelCost(w, d) {
-    return 8 + this.countiesOf(d.id, w.defenderId).length * 5 + Math.max(0, -(d.opinion ?? 0)) * 0.2;
+    return 5 + this.countiesOf(d.id, w.defenderId).length * 4 + Math.max(0, -(d.opinion ?? 0)) * 0.1;
   },
 
   // ───────── 王の手 ─────────
@@ -66,7 +66,10 @@ export const RebellionMixin = {
       if (!pay(cost)) return `家格が足りません（${cost} 要る）。`;
       w.members = w.members.filter((id) => id !== d.id);
       w.provinces = w.provinces.filter((pid) => this.provinces[pid].holder !== d.id);
-      this._remember(d, 25, '王の恩赦', k);
+      this._remember(d, 45, '王の恩赦', k);
+      // 恩赦した家には、しばらく「不満な諸侯」の出来事を出さない
+      this.player.eventCooldown = this.player.eventCooldown ?? {};
+      this.player.eventCooldown.appease = this.year;
       this.addLog('war', `${d.name}家は ${this.pn(this.ruler(k))} の恩赦を受け入れ、${w.name}から手を引いた。`, [k.id]);
       if (!w.members.length) this._endWar(w, 'defender', '反乱軍が切り崩された');
       return `${d.name}家が反乱から抜けた（家格 −${cost}）。`;

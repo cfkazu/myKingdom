@@ -1631,3 +1631,13 @@ select:focus-visible {
 .war-bar {
   background: linear-gradient(90deg, #2f9e5b 0%, #e9e1c8 50%, #c0392b 100%);
 }
+.stars {
+  margin-left: auto;
+  color: var(--gold);
+  font-weight: 700;
+}
+.end-stars {
+  font-size: 22px;
+  color: var(--gold);
+  font-weight: 700;
+}

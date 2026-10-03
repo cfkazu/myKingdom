@@ -59,6 +59,11 @@ export class DecisionPanel {
       .map((x) => `<span class="badge">${label[x.type]}${x.personId != null ? `：${esc(w.get(x.personId).name)}` : ''}</span>`)
       .join('');
     this.el.innerHTML = `${body}${more > 0 ? `<p class="small muted queue">このあと待っている決断（${more}）：${queue}</p>` : ''}`;
+    // スマホ幅では、新しい決断が来たらカードまで画面を送る
+    if (d.id !== this.lastShown) {
+      this.lastShown = d.id;
+      if (window.innerWidth < 700) this.el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
   }
 
   // ───────── 内乱 ─────────
@@ -91,7 +96,7 @@ export class DecisionPanel {
     const A = w.kingdoms[war.attackerId];
     return `<div class="decision">
       <div class="eyebrow">⚔ ${esc(war.name)}</div><h2>${esc(A.name)}が攻めてきました</h2>
-      <p>${richText(w, `${w.pn(w.ruler(A))} が${war.kind === 'claim' ? ` ${w.pn(w.get(war.claimantId))} の王位の請求権を掲げて` : ''}宣戦した。`)}${war.defenderAllies.length ? `${war.defenderAllies.map((a) => esc(w.kingdoms[a].name)).join('・')}が同盟に従い、こちらに加勢する。` : ''}${war.attackerAllies.length ? `${war.attackerAllies.map((a) => esc(w.kingdoms[a].name)).join('・')}は相手についた。` : ''}</p>
+      <p>${richText(w, `${w.pn(w.ruler(A))} が${war.kind === 'claim' ? (war.claimantId === w.ruler(A)?.id ? ' 自らの王位の請求権を掲げて' : ` ${w.pn(w.get(war.claimantId))} の王位の請求権を掲げて`) : ''}宣戦した。`)}${war.defenderAllies.length ? `${war.defenderAllies.map((a) => esc(w.kingdoms[a].name)).join('・')}が同盟に従い、こちらに加勢する。` : ''}${war.attackerAllies.length ? `${war.attackerAllies.map((a) => esc(w.kingdoms[a].name)).join('・')}は相手についた。` : ''}</p>
       ${warHTML(w, war)}
       <p class="small muted">あとからでも、王国タブの「戦争中」や、画面上部の帯の「対処する」で同じ手を打てます。</p>
       <p class="choices"><button type="button" data-id="${d.id}" data-choice="ok">閉じる</button></p>
@@ -209,6 +214,10 @@ export class DecisionPanel {
                 : '・<span class="muted">子の遺伝病：わからない</span>'
           }</div>
           ${genesLine}
+          ${(() => {
+            const f = w.goalForecast(p, c, known ? pr : null);
+            return f ? `<div class="small goal-fc ${f.good === true ? 'good' : f.good === false ? 'bad' : 'muted'}">🎯 ${esc(f.text)}${f.good === true ? '（家の平均を上げる）' : f.good === false ? '（家の平均を下げる）' : ''}</div>` : '';
+          })()}
           ${feud ? `<div class="small feud">⚔ 因縁：${richText(w, feud)}。縁組すれば恨みは和らぐ。</div>` : ''}
         </div>
         <div class="cand-btns">${cost ? `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>口説く（家格 −${cost}）</button>${prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}` : `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">${d.proposal ? '申し込みを受ける' : 'この人と'}</button>`}${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿に迎える</button><span class="small muted matri-note">子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : ''}</div>
@@ -365,7 +374,9 @@ export class DecisionPanel {
         <dt>出した君主</dt><dd>${rulers.length ? esc(rulers.join('・')) : 'なし'}</dd>
         <dt>成し遂げた目標</dt><dd>${ach.length ? ach.map((a) => `${a.icon}${esc(a.label)}（${a.year}年）`).join('、') : 'なし'}</dd>
         <dt>最後の家格</dt><dd>${Math.round(dyn.prestige)}</dd>
+        <dt>果たした野望</dt><dd>${(w.player.ambitions ?? []).filter((a) => a.done != null).map((a) => `${a.icon}${esc(a.label)}（${a.done}年）`).join('、') || 'なし'}</dd>
       </dl>
+      <p class="end-stars">成績 ${'★'.repeat(w.score().stars) || '—'} <span class="small muted">（野望 ${w.score().done}/${w.score().total}・血の目標 ${w.score().goals}）</span></p>
       ${this._tombs(w, dyn)}
       <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="another">別の家で続ける</button><button type="button" data-id="${d.id}" data-choice="ok">このまま歴史を眺める</button></p>
     </div>`;

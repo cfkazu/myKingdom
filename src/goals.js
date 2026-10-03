@@ -127,6 +127,32 @@ export const GoalsMixin = {
     this.player.goal = key ? { key, target, since: this.year, heldSince: null } : null;
   },
 
+  // 縁談の候補 c と結ばれたら、家の目標にどう効きそうか（pred は子の予測）
+  goalForecast(p, c, pred = null) {
+    const goal = this.player?.goal;
+    if (!goal) return null;
+    const g = GOALS[goal.key];
+    if (!this.knowsGenes(c)) return { text: `鑑定すると「${g.label}」への見込みがわかる`, good: null };
+    if (g.kind === 'fix') {
+      const exp = (this.aptitude(p, g.trait).value + this.aptitude(c, g.trait).value) / 2;
+      const now = this.goalValue(goal.key);
+      return { text: `子の素質の見込み ≈ ${Math.round(exp * 100)}%（いま家の平均 ${Math.round(now * 100)}%・目標 ${Math.round(goal.target * 100)}%）`, good: exp > now + 0.01 ? true : exp < now - 0.01 ? false : null };
+    }
+    if (g.kind === 'purge') {
+      const t = (x) => {
+        const as = allelesAt(x.genome, g.key);
+        return as.length ? as.filter((a) => a === g.allele).length / as.length : 0;
+      };
+      const prob = 1 - (1 - t(p)) * (1 - t(c));
+      return { text: `子が${g.what.replace('を持つ人', '')}を受け継ぐ確率 ≈ ${Math.round(prob * 100)}%`, good: prob < 0.3 };
+    }
+    if (pred && pred.born) {
+      const prob = (pred.hair?.[g.hair] ?? 0) / pred.born;
+      return { text: `子が金髪になる確率 ≈ ${Math.round(prob * 100)}%`, good: prob >= 0.5 };
+    }
+    return null;
+  },
+
   goalProgress() {
     const goal = this.player?.goal;
     if (!goal) return null;
