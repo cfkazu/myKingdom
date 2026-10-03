@@ -58,8 +58,15 @@ export class RealmPanel {
       <div class="reb-acts">
         ${king ? b('feast', '', `🎉 祝宴を開く（−${FEAST_COST}）`, FEAST_COST, '諸侯みなの忠誠 +15（5 年に 1 度まで）', k.feastYear != null && w.year - k.feastYear < 5) : b('tribute', '', `🎁 王に献上する（−${TRIBUTE_COST}）`, TRIBUTE_COST, '15 年のあいだ、王の恩賞で伯爵領を賜りやすくなる', (my.favorUntil ?? 0) > w.year)}
       </div>
-      ${buys.length ? `<div class="small"><b>💰 伯爵領を買い取る</b>${king ? '（王領になる）' : '（あなたの所領になる。同じ公爵領の過半を持てば公爵に）'}</div><div class="chips small">${buys.map((o) => `<span>${esc(o.pr.name)}<span class="muted">（${o.crown ? '王領' : `${esc(o.d.name)}家`}${o.near ? '・隣' : ''}）</span>${b('buy', o.pr.id, `−${o.price}`, o.price, `${o.d.name}家から${o.pr.name}伯領を買う。売り手は家格の半分を受け取る`)}</span>`).join('')}</div>` : '<p class="small muted">いま買い取れる伯爵領はありません（売り手は 2 つ以上持つ家だけ）。</p>'}
-      ${fabs.length ? `<div class="small"><b>📜 請求権を捏造する</b>（その国に継承戦争を起こせるようになる）</div><div class="chips small">${fabs.map((o) => `<span>${esc(o.t.name)}${b('fab', o.t.id, `−${o.price}`, o.price, `${o.t.name}の王位への請求権を得る。継承戦争に勝てば王位が手に入る`)}</span>`).join('')}</div>` : ''}
+      ${buys.length ? `<div class="small"><b>💰 伯爵領を買い取る</b>${king ? `（王領になる。王領はいま ${w.demesneOf(k).length}/${w.demesneLimit(k)}${buys[0].overLimit ? '：<span class="bad">上限を超えるので、恩賞で手放すことになりやすい</span>' : ''}）` : '（あなたの所領になる。一つの公爵領の過半を持てば公爵に）'}</div>
+        <table class="list small buy-list"><tbody>${buys
+          .map(
+            (o) => `<tr><td><button type="button" class="chip-btn" data-flash="${o.pr.id}" data-flash-kind="news" title="地図で見る">${esc(o.pr.name)}</button><div class="muted">${o.crown ? '王領' : `${esc(o.d.name)}家${o.home ? 'の本拠（割高）' : ''}`}${o.near ? '・隣' : ''}・${esc(o.du.name)}公領</div></td>
+              <td>${o.dukeLeft == null ? '' : o.dukeLeft <= 0 ? `<b class="good">👑 これで${esc(o.du.name)}公に！</b>` : `<span class="muted">${esc(o.du.name)}公まで あと ${o.dukeLeft}</span>`}</td>
+              <td>${b('buy', o.pr.id, `買う −${o.price}`, o.price, `${o.crown ? '王' : `${o.d.name}家`}から${o.pr.name}伯領を買う。売り手は家格の半分を受け取る`)}</td></tr>`,
+          )
+          .join('')}</tbody></table>` : '<p class="small muted">いま買い取れる伯爵領はありません（売り手は 2 つ以上持つ家だけ）。</p>'}
+      ${fabs.length ? `<div class="small"><b>📜 請求権を捏造する</b>（その国に継承戦争を起こせるようになる）</div><div class="chips small">${fabs.map((o) => `<span>${esc(o.t.name)}${o.truce ? `<span class="bad">（休戦中・あと ${o.truce} 年は宣戦できない）</span>` : ''}${b('fab', o.t.id, `−${o.price}`, o.price, `${o.t.name}の王位への請求権を得る（家の財産として、当主が代わっても残る）。継承戦争に勝てば王位が手に入る`)}</span>`).join('')}</div>` : ''}
     </div>`;
   }
 
@@ -88,6 +95,10 @@ export class RealmPanel {
                 .join('')}</tbody></table>`
             : '<p class="small muted">いま攻められる相手はいません（同盟・休戦中・隣国がない）。</p>'
         }
+        ${(() => {
+          const tr = w.neighbors(k).filter((t) => w.truceLeft(k.id, t.id));
+          return tr.length ? `<p class="small muted">休戦中で宣戦できない国：${tr.map((t) => `${esc(t.name)}（あと ${w.truceLeft(k.id, t.id)} 年）`).join('・')}</p>` : '';
+        })()}
         <p class="small muted">見込みは、同盟国の加勢と包囲網の恐れまで含めた兵力の比です。大陸の 3 分の 1 を超える国が攻めると、ほかの国々が包囲網をつくります。諸侯の土地を取り上げるには、下の諸侯の表の「没収」を。</p></div>`;
     }
     if (k === w.playerLiege()) {

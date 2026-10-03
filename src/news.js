@@ -169,7 +169,8 @@ export const NewsMixin = {
 
   // あなたの家の当主が代わった
   _newsHeadChange(prev, h, d) {
-    const rel = [h.fatherId, h.motherId].includes(prev.id) ? (prev.sex === 'M' ? '父' : '母') : h.fatherId != null && h.fatherId === prev.fatherId ? 'きょうだい' : [prev.fatherId, prev.motherId].includes(h.id) ? '親' : '一族';
+    // h が prev から見て何にあたるか
+    const rel = [h.fatherId, h.motherId].includes(prev.id) ? '子' : h.fatherId != null && h.fatherId === prev.fatherId ? 'きょうだい' : [prev.fatherId, prev.motherId].includes(h.id) ? '親' : '一族';
     const lands = this.countiesOf(d.id);
     const pk = this.playerKingdom();
     const age = this.age(h);

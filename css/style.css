@@ -1641,3 +1641,36 @@ select:focus-visible {
   color: var(--gold);
   font-weight: 700;
 }
+
+/* 野望を果たした */
+.celebrate {
+  border-color: var(--gold) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 14%, var(--surface)) 0%, var(--surface) 60%);
+}
+.celebrate-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.big-stars {
+  font-size: 28px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  margin: 4px 0;
+}
+.new-star {
+  display: inline-block;
+  animation: star-pop 1.2s ease-out both;
+}
+@keyframes star-pop {
+  0% { transform: scale(0) rotate(-90deg); opacity: 0; }
+  60% { transform: scale(1.6) rotate(10deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .new-star { animation: none; }
+}
+.amb.done {
+  color: var(--gold);
+  font-weight: 700;
+}

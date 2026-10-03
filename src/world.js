@@ -1472,7 +1472,8 @@ export class World {
       if (side === 'A') {
         let s = 0;
         for (const pr of this.provinces) if (pr.ownerId === main.id && ex.has(pr.holder)) s += this.countyLevy(pr);
-        return s * 1.2 + 2;
+        // 反乱軍が傭兵を雇っているあいだは 35% 増し
+        return (s * 1.2 + 2) * (w.mercsA != null && this.year <= w.mercsA ? 1.35 : 1);
       }
       // 王に不満な諸侯は、反乱の鎮圧に兵を出さない（王に味方すると決めた家は出す）
       for (const d of this.vassals(main)) if ((d.opinion ?? 0) < -15 && !(w.loyalists ?? []).includes(d.id)) ex.add(d.id);
@@ -1666,6 +1667,11 @@ export class World {
       } else this.addLog('war', `${w.name}は痛み分けに終わった。${why}`, [A.id, D.id]);
     } else if (w.kind === 'claim') {
       const c = this.get(w.claimantId);
+      // 請求者が戦のさなかに死んでいたら、請求はかなわない
+      if (result === 'attacker' && !c.alive) {
+        this.addLog('war', `${w.name}は ${this.kn(A)} が優勢だったが、請求者 ${this.pn(c)} の死で請求はかなわなかった。`, [A.id, D.id]);
+        return;
+      }
       if (result === 'attacker') {
         const old = this.ruler(D);
         if (old) {
@@ -1886,11 +1892,11 @@ export class World {
 
   // ───────── 後片づけと記録 ─────────
 
-  // 家格の年収：王 2.5、公爵 1、伯爵は伯爵領 1 つにつき 0.3
+  // 家格の年収：王 2.5、公爵 1.2、伯爵は伯爵領 1 つにつき 0.6
   prestigeIncome(d) {
     if (this.kingdoms.some((k) => k.alive && this.ruler(k)?.dynastyId === d.id)) return 2.5;
     const r = this.houseRank(d);
-    return r === 'duke' ? 1 : r === 'count' ? 0.3 * this.countiesOf(d.id).length : 0;
+    return r === 'duke' ? 1.2 : r === 'count' ? 0.6 * this.countiesOf(d.id).length : 0;
   }
 
   _housekeeping() {

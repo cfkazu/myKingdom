@@ -53,10 +53,10 @@ export const AmbitionsMixin = {
         let best = null;
         for (const du of this.duchies) {
           const mine = du.provinces.filter((id) => this.provinces[id].holder === d.id).length;
-          const need = Math.floor(du.provinces.length / 2) + 1;
+          const need = this.duchyNeed(du);
           if (mine && (!best || mine / need > best.mine / best.need)) best = { du, mine, need };
         }
-        return best ? `${best.du.name}公領 ${best.mine}/${best.need}` : '公爵領の伯爵領を集める';
+        return best ? `${best.du.name}公領 ${best.mine}/${best.need}（王国タブの「伯爵領を買い取る」に、公爵へ近い順に並ぶ）` : '公爵領の伯爵領を集める';
       }
       case 'crown':
         return '';
@@ -81,7 +81,8 @@ export const AmbitionsMixin = {
       a.done = this.year;
       d.prestige += 25;
       this.addLog('dynasty', `🏆 ${d.name}家は野望「${a.label}」を果たした（${this.year - this.player.startYear} 年目）。家格 +25。`);
-      this._news({ icon: '🏆', title: `野望を果たした：${a.label}`, body: `${this.year - this.player.startYear} 年目のことだった。家格 +25。`, why: '野望は、遊びはじめの身分から見て、まだ届いていない目標です。', means: this.nextAmbition() ? `次の野望：${this.nextAmbition().label}（${this.nextAmbition().hint}）` : 'すべての野望を果たした！', pids: [] });
+      // 時間を止めて祝う
+      this._decision({ type: 'celebrate', key: a.key, icon: a.icon, label: a.label, years: this.year - this.player.startYear, milestone: a.key.startsWith('y') });
     }
   },
 

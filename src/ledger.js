@@ -179,7 +179,11 @@ export const LedgerMixin = {
       if (d.heads.length > 40) d.heads.shift();
       h.wasHead = h.wasHead ?? d.id;
       if (prev) this._deed(h, 'head', `${d.name}家の当主となる`);
-      if (prev && this.player && !this.player.over && d.id === this.player.dynastyId) this._newsHeadChange(prev, h, d);
+      if (prev && this.player && !this.player.over && d.id === this.player.dynastyId) {
+        // 捏造した請求権は、新しい当主に引き継ぐ
+        for (const kid of d.fabClaims ?? []) if (this.kingdoms[kid]?.alive && !h.claims.includes(kid) && h.rulerOf !== kid) h.claims.push(kid);
+        this._newsHeadChange(prev, h, d);
+      }
     }
   },
 

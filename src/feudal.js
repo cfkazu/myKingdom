@@ -202,17 +202,46 @@ export const FeudalMixin = {
     return s * comp * (k.regentId != null ? 0.85 : 1) * (1 - Math.min(0.5, k.exhaustion));
   },
 
+  // 絶えた家 d の血を引く人：最後の当主の子、ついでその家の人を親に持つ人。ほかの国の王家の人は除く
+  _bloodHeir(d) {
+    let best = null;
+    let bestS = -Infinity;
+    for (const p of this.living) {
+      if (!p.alive || p.dynastyId == null || p.dynastyId === d.id || this.age(p) < 1) continue;
+      const pd = this.dyn(p);
+      if (!pd || pd.extinct) continue;
+      const par = [this.get(p.fatherId), this.get(p.motherId)].find((x) => x && x.dynastyId === d.id);
+      if (!par) continue;
+      if (this.kingdoms.some((k) => k.alive && k.rulerId != null && this.ruler(k).dynastyId === pd.id && k.id !== this.provinces[d.homeProvinceId]?.ownerId)) continue;
+      const s = (par.id === d.headId ? 100 : 0) + Math.min(this.age(p), 60);
+      if (s > bestS) {
+        bestS = s;
+        best = p;
+      }
+    }
+    return best;
+  },
+
   // ───────── 毎年の封建のしごと ─────────
 
   _feudal() {
-    // 絶えた家の土地は王領に戻る
+    // 絶えた家の土地は、その家の血を引く人（嫁いだ娘の子など）の家が継ぐ。いなければ王領に戻る
+    const heirs = new Map();
     for (const pr of this.provinces) {
       if (pr.holder == null) continue;
       const d = this.dynasties[pr.holder];
-      if (d.extinct) {
-        pr.holder = null;
-        if (d.prestige > 30) this.addLog('dynasty', `${d.name}家が絶え、${pr.name}伯領は王領に戻った。`, [pr.ownerId]);
-      }
+      if (!d.extinct) continue;
+      if (!heirs.has(d.id)) heirs.set(d.id, this._bloodHeir(d));
+      const h = heirs.get(d.id);
+      const k = this.kingdoms[pr.ownerId];
+      const hd = h ? this.dyn(h) : null;
+      if (hd && this.ruler(k)?.dynastyId === hd.id) pr.holder = null;
+      else pr.holder = hd ? hd.id : null;
+      if (hd) {
+        this.addLog('dynasty', `${d.name}家が絶え、${pr.name}伯領は血を引く ${this.pn(h)}（${hd.name}家）が継いだ。`, [pr.ownerId]);
+        if (this.player && !this.player.over && hd.id === this.player.dynastyId)
+          this._news?.({ icon: '📜', title: `${pr.name}伯領 を相続した`, body: `${d.name}家が絶え、その血を引く ${this.pn(h)} があなたの家に${pr.name}伯領をもたらした。`, why: '家が絶えると、その所領は血を引く人（嫁いだ娘の子など）の家が継ぎます。跡取り娘との縁組は、所領を増やす道です。', means: `所領：${this.countiesOf(hd.id).map((p) => p.name).join('・')}。`, flashKind: 'gain', pids: [pr.id] });
+      } else if (d.prestige > 30) this.addLog('dynasty', `${d.name}家が絶え、${pr.name}伯領は王領に戻った。`, [pr.ownerId]);
     }
     for (const k of this.kingdoms) if (k.alive) this._ensureCapital(k);
     this._updateDuchies();
@@ -327,7 +356,8 @@ export const FeudalMixin = {
         // 同じ公爵領にすでに土地を持つ家は、まとめて持たせる（公爵が育つ）
         const sameDuchy = this.countiesOf(d.id).some((c) => c.duchyId === pr.duchyId) ? 28 : 0;
         // 王に献上した家は、恩賞で選ばれやすい
-        const favor = (d.favorUntil ?? 0) > this.year ? 45 : 0;
+        // 献上した家には、次の恩賞を必ず与える
+        const favor = (d.favorUntil ?? 0) > this.year ? 400 : 0;
         const s = favor + sameDuchy + (rebel ? -80 : 0) + (n === 0 ? 30 : -n * 12) + (d.opinion ?? 0) * 0.4 + Math.min(20, d.prestige * 0.25) + 60 * this.ped.kinship(h.id, r?.id) + this.martial(h) * 0.15 + this.rng.next() * 15;
         if (s > bestS) {
           bestS = s;
@@ -345,6 +375,7 @@ export const FeudalMixin = {
       to = best;
     }
     pr.holder = to.id;
+    if ((to.favorUntil ?? 0) > this.year) to.favorUntil = null;
     this._remember(to, 30, why, k);
     const h = this.head(to);
     if (h && r) this.addLog('dynasty', `${this.pn(r)} は ${why}として ${pr.name}伯領 を ${this.pn(h)}（${to.name}家）に与えた。`, [k.id]);

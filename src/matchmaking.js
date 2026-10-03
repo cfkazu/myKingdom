@@ -32,6 +32,14 @@ export const MatchMixin = {
     }
     // 和解：恨みのある家と
     if (cd && my && this.feudBetween?.(my, cd)) hooks.push({ key: 'feud', icon: '🕊', text: `${cd.name}家との因縁を、この縁組で大きく和らげられる` });
+    // 跡取り：家が絶えかけていて、所領を持つ家の当主の子。その家が絶えれば、所領は子の家に渡る
+    if (cd && my && cd.id !== my.id && !c.lowborn) {
+      const lands = this.countiesOf(cd.id);
+      const alive = this.living.filter((x) => x.alive && x.dynastyId === cd.id).length;
+      const head = this.head(cd);
+      if (lands.length && alive <= 3 && head && (c === head || c.fatherId === head.id || c.motherId === head.id))
+        hooks.push({ key: 'heiress', icon: '📜', text: `跡取り：${cd.name}家は絶えかけている（存命 ${alive} 人）。絶えれば ${lands.map((p) => p.name).join('・')}伯領は、子の家（あなたの家）が継ぐ` });
+    }
     // 主君の王家と
     const liege = my ? this.kingdoms[my.kingdomId] : null;
     const lr = liege && liege.alive ? this.ruler(liege) : null;
@@ -107,7 +115,9 @@ export const MatchMixin = {
       // 評判の縁も、いちばん目立つ 1 人だけ
       const famed = offers.filter((o) => o.hooks.some((h) => h.key === 'fame')).sort((a, b) => b.hooks.find((h) => h.key === 'fame').value - a.hooks.find((h) => h.key === 'fame').value);
       for (const o of famed.slice(1)) o.hooks = o.hooks.filter((h) => h.key !== 'fame');
-      for (const o of offers) o.hooks = o.hooks.slice(0, 2);
+      // 大事な縁から 2 つまで
+      const PRI = ['heiress', 'claim', 'friend', 'love', 'feud', 'dowry', 'liege', 'proven', 'fame', 'gentry'];
+      for (const o of offers) o.hooks = o.hooks.sort((a, b) => PRI.indexOf(a.key) - PRI.indexOf(b.key)).slice(0, 2);
     }
     this._decision({ type: 'marriage', personId: p.id, candidateIds: offers.map((o) => o.id), offers, proposal: !!proposal });
   },

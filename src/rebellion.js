@@ -87,7 +87,16 @@ export const RebellionMixin = {
       this._endWar(w, 'white', '王が譲歩した');
       return `譲歩して和睦した（家格 −${CONCEDE_COST}${pr ? `、${pr.name}伯領を${ld.name}家に与えた` : ''}）。`;
     }
-    if (king && action === 'battle') {
+    const rebel = !king && (w.members ?? []).includes(my.id);
+    // 反乱軍の側も、傭兵を雇える
+    if (rebel && action === 'mercs') {
+      if (w.mercsA != null && this.year <= w.mercsA) return '傭兵はもう雇っています。';
+      if (!pay(MERC_COST)) return `家格が足りません（${MERC_COST} 要る）。`;
+      w.mercsA = this.year + 2;
+      this.addLog('war', `${my.name}家は傭兵団を雇い、反乱軍に加えた。`, [k.id]);
+      return `傭兵を雇った（家格 −${MERC_COST}）。3 年のあいだ反乱軍の兵力が 35% 増える。`;
+    }
+    if ((king || rebel) && action === 'battle') {
       if (w.pitched === this.year) return '今年はもう決戦を挑みました。';
       w.pitched = this.year;
       const before = w.score;
@@ -96,7 +105,8 @@ export const RebellionMixin = {
         if (w.score >= 100) this._endWar(w, 'attacker');
         else if (w.score <= -100) this._endWar(w, 'defender');
       }
-      const won = w.score < before;
+      // 王から見て戦況が下がれば勝ち。反乱軍から見れば逆
+      const won = king ? w.score < before : w.score > before;
       return w.ended ? '決戦で勝負がついた。' : won ? `決戦に勝った（戦況 ${Math.round(before)} → ${Math.round(w.score)}）。` : `決戦に敗れた（戦況 ${Math.round(before)} → ${Math.round(w.score)}）。`;
     }
     // ───────── 諸侯の手 ─────────

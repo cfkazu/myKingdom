@@ -1,7 +1,7 @@
 // 家格の使い道：家格は身分に応じて少しずつ入り、年 2.5% ずつ目減りする。貯めるより使うもの。World にメソッドとして組み込む。
 //
 // - 祝宴を開く（王）：諸侯みなの忠誠が上がる
-// - 王に献上する（諸侯）：15 年のあいだ、王の恩賞で伯爵領を賜りやすくなる
+// - 王に献上する（諸侯）：15 年のうちに王が伯爵領を与えるときは、必ずあなたの家に来る
 // - 伯爵領を買い取る（王・諸侯）：同じ国のほかの家から伯爵領を買う（相手が 2 つ以上持っていれば）
 // - 請求権を捏造する（王）：隣国の王位への請求権をつくり、継承戦争を起こせるようにする
 
@@ -35,34 +35,58 @@ export const FavorsMixin = {
     if (!this._spend(TRIBUTE_COST)) return `家格が足りません（${TRIBUTE_COST} 要る）。`;
     my.favorUntil = this.year + 15;
     this.addLog('event', `${my.name}家は ${this.pn(this.ruler(k))} に献上品を贈った。`, [k.id]);
-    return `王に献上した（家格 −${TRIBUTE_COST}）。15 年のあいだ、恩賞の伯爵領を賜りやすくなる。`;
+    return `王に献上した（家格 −${TRIBUTE_COST}）。15 年のうちに王が伯爵領を与えるときは、必ずあなたの家に来る（王領が上限を超えたとき・戦で奪ったときなど）。`;
   },
 
-  // 買い取れる伯爵領：同じ国の、ほかの家が持つ伯爵領（相手が 2 つ以上持ち、本拠ではないもの）
+  // 公爵になるのに要る伯爵領の数（その公爵領の過半、2 つ以上）
+  duchyNeed(du) {
+    return Math.max(2, Math.ceil(du.provinces.length / 2));
+  },
+
+  // 買い取れる伯爵領：同じ国の、ほかの家が 2 つ以上持つ伯爵領（本拠は割高）。諸侯は王領も割高で買える
   buyableCounties() {
     const my = this.playerDynasty();
     const k = this.playerKingdom() ?? this.playerLiege();
     if (!my || !k) return [];
-    const mine = new Set(this.provinces.filter((p) => p.holder === my.id || (this.playerKingdom() && p.ownerId === k.id && this.isDemesne(p))).map((p) => p.id));
-    const rebels = new Set(this.wars.filter((w) => !w.ended && w.defenderId === k.id).flatMap((w) => w.members ?? []));
     const king = this.playerKingdom();
     const ruler = this.ruler(k);
-    // 諸侯は、王の王領（首都以外・王領が 2 つ以上あるとき）も割高で買える
+    const mine = new Set(this.provinces.filter((p) => p.holder === my.id || (king && p.ownerId === k.id && this.isDemesne(p))).map((p) => p.id));
+    const rebels = new Set(this.wars.filter((w) => !w.ended && w.defenderId === k.id).flatMap((w) => w.members ?? []));
     const crown = !king && ruler && this.demesneOf(k).length >= 2;
+    const overLimit = king ? this.demesneOf(k).length + 1 > this.demesneLimit(k) : false;
     return this.provinces
       .filter((pr) => pr.ownerId === k.id && pr.holder !== my.id && !(pr.holder != null && rebels.has(pr.holder)))
       .filter((pr) => {
         if (pr.holder == null) return crown && pr.id !== k.capital;
         const d = this.dynasties[pr.holder];
-        return d && !d.extinct && this.countiesOf(d.id, k.id).length >= 2 && d.homeProvinceId !== pr.id;
+        return d && !d.extinct && this.countiesOf(d.id, k.id).length >= 2;
       })
-      .map((pr) => ({ pr, d: pr.holder != null ? this.dynasties[pr.holder] : this.dyn(ruler), crown: pr.holder == null, near: [...pr.neighbors].some((q) => mine.has(q)), price: Math.round(this.countyPrice(pr) * (pr.holder == null ? 1.5 : 1)) }))
-      .sort((a, b) => Number(b.near) - Number(a.near) || a.price - b.price)
-      .slice(0, 6);
+      .map((pr) => {
+        const d = pr.holder != null ? this.dynasties[pr.holder] : this.dyn(ruler);
+        const home = pr.holder != null && d.homeProvinceId === pr.id;
+        const du = this.duchies[pr.duchyId];
+        const have = du.provinces.filter((id) => this.provinces[id].holder === my.id).length;
+        const left = this.duchyNeed(du) - (have + 1);
+        const isDuke = this.duchyHolderDyn(du) === my.id;
+        return {
+          pr,
+          d,
+          du,
+          home,
+          crown: pr.holder == null,
+          near: [...pr.neighbors].some((q) => mine.has(q)),
+          // 公爵への道：これを買えば公爵になる（left ≤ 0）／あと left つ
+          dukeLeft: king || isDuke ? null : left,
+          overLimit,
+          price: Math.round(this.countyPrice(pr) * (pr.holder == null ? 1.5 : home ? 1.4 : 1)),
+        };
+      })
+      .sort((a, b) => (a.dukeLeft ?? 99) - (b.dukeLeft ?? 99) || Number(b.near) - Number(a.near) || a.price - b.price)
+      .slice(0, 8);
   },
 
   countyPrice(pr) {
-    return Math.round(30 + Math.min(30, pr.pop / Math.max(1, pr.area) * 6));
+    return Math.round(30 + Math.min(30, (pr.pop / Math.max(1, pr.area)) * 6));
   },
 
   buyCounty(prId) {
@@ -74,9 +98,14 @@ export const FavorsMixin = {
     o.d.prestige += o.price * 0.5;
     const king = this.playerKingdom();
     o.pr.holder = king ? null : my.id;
+    // 本拠を売った家は、ほかの伯爵領に移る
+    if (o.home) o.d.homeProvinceId = this.countiesOf(o.d.id, k.id)[0]?.id ?? o.d.homeProvinceId;
     if (king) this._remember(o.d, 5, '王の買い上げ', k);
-    this.addLog('dynasty', `${my.name}家は ${o.d.name}家から ${o.pr.name}伯領 を買い取った。`, [k.id]);
-    return `${o.pr.name}伯領を買い取った（家格 −${o.price}）。${king ? '王領になった。' : ''}`;
+    else if (!my.homeProvinceId || this.provinces[my.homeProvinceId].holder !== my.id) my.homeProvinceId = o.pr.id;
+    this._updateDuchies();
+    this.addLog('dynasty', `${my.name}家は ${o.crown ? '王から' : `${o.d.name}家から`} ${o.pr.name}伯領 を買い取った。`, [k.id]);
+    const duke = !king && this.duchyHolderDyn(o.du) === my.id;
+    return `${o.pr.name}伯領を買い取った（家格 −${o.price}）。${king ? (o.overLimit ? '王領が上限を超えたので、恩賞で諸侯に与えることになるかもしれない。' : '王領になった。') : duke ? `${o.du.name}公になった！` : ''}`;
   },
 
   // 請求権を捏造できる隣国
@@ -86,7 +115,13 @@ export const FavorsMixin = {
     if (!k || !h) return [];
     return this.neighbors(k)
       .filter((t) => t.alive && !h.claims.includes(t.id))
-      .map((t) => ({ t, price: 40 + this.provincesOf(t).length * 5 }));
+      .map((t) => ({ t, price: 40 + this.provincesOf(t).length * 5, truce: this.truceLeft(k.id, t.id) }));
+  },
+
+  // 休戦の残り年数（0 なら休戦していない）
+  truceLeft(a, b) {
+    const t = this.truces.get(a < b ? `${a}-${b}` : `${b}-${a}`);
+    return t != null && t > this.year ? t - this.year : 0;
   },
 
   fabricate(kid) {
@@ -95,6 +130,9 @@ export const FavorsMixin = {
     if (!this._spend(o.price)) return `家格が足りません（${o.price} 要る）。`;
     const h = this.playerHead();
     h.claims.push(kid);
+    // 捏造した請求権は家の財産：当主が代わっても引き継ぐ
+    const my = this.playerDynasty();
+    my.fabClaims = [...new Set([...(my.fabClaims ?? []), kid])];
     this.addLog('war', `${this.pn(h)} の書記官たちが、${this.kn(o.t)} の王位への古い請求権を「見つけ出した」。`, [o.t.id]);
     return `${o.t.name}の王位への請求権を得た（家格 −${o.price}）。王国タブから継承戦争を起こせます。勝てば ${o.t.name}の王位が手に入る。`;
   },

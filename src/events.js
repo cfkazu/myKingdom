@@ -219,7 +219,7 @@ export const EventsMixin = {
       [
         { id: 'rule', label: '政の心得を授ける', desc: `${heir.name}の知略とカリスマが少し伸びる` },
         { id: 'war', label: '武の心得を授ける', desc: `${heir.name}の体の強さが少し伸びる` },
-        { id: 'pride', label: '家の誇りを語り継ぐ', desc: '家格が上がる' },
+        { id: 'pride', label: '家の誇りを語り継ぐ', desc: '家格 +10' },
       ],
       { heirId: heir.id },
     );
@@ -365,8 +365,8 @@ export const EventsMixin = {
       case 'last': {
         const heir = this.get(d.heirId);
         if (choice === 'pride') {
-          house.prestige += 25;
-          return `${house.name}家の誇りが語り継がれた（家格 +25）。`;
+          house.prestige += 10;
+          return `${house.name}家の誇りが語り継がれた（家格 +10）。`;
         }
         if (!heir || !heir.alive) return null;
         if (choice === 'rule') {

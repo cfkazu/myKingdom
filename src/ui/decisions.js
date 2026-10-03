@@ -51,8 +51,8 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d), war: () => this._war(w, d) }[d.type]();
-    const label = { war: '⚔ 戦争', rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d), war: () => this._war(w, d), celebrate: () => this._celebrate(w, d) }[d.type]();
+    const label = { celebrate: '🏆 野望', war: '⚔ 戦争', rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
@@ -85,6 +85,29 @@ export class DecisionPanel {
       ${rebellionHTML(w, war, role)}
       <p class="small muted">あとからでも、王国タブの「内乱への対処」で同じ手を打てます。反乱軍の領地は地図で赤い斜線になります。</p>
       <p class="choices"><button type="button" data-id="${d.id}" data-choice="ok">${role === 'vassal' ? '様子を見る（閉じる）' : '閉じる'}</button></p>
+    </div>`;
+  }
+
+  // ───────── 野望を果たした ─────────
+
+  _celebrate(w, d) {
+    const sc = w.score();
+    const dyn = w.playerDynasty();
+    const h = w.playerHead();
+    const next = w.nextAmbition();
+    const amb = w.player.ambitions ?? [];
+    const steps = amb.filter((a) => !a.key.startsWith('y'));
+    const miles = amb.filter((a) => a.key.startsWith('y'));
+    const row = (a) => `<span class="amb ${a.done != null ? 'done' : ''}">${a.done != null ? '★' : '☆'} ${a.icon}${esc(a.label)}</span>`;
+    return `<div class="decision celebrate">
+      <div class="eyebrow">🏆 ${d.milestone ? '節目' : '野望'}を果たした</div>
+      <div class="celebrate-head">${h ? portraitSVG(w, h, 72) : ''}<div><h2>${d.icon} ${esc(d.label)}</h2>
+      <p>${esc(dyn.name)}家は、遊びはじめて ${d.years} 年目に「${esc(d.label)}」を果たした。家格 +25。</p>
+      <p class="big-stars">${'★'.repeat(Math.max(0, sc.stars - 1))}<span class="new-star">★</span></p></div></div>
+      <div class="small"><b>野望</b>：${steps.map(row).join(' → ') || 'なし'}</div>
+      ${miles.length ? `<div class="small"><b>節目</b>：${miles.map(row).join('・')}</div>` : ''}
+      <p class="small">${next ? `次の野望：<b>${next.icon} ${esc(next.label)}</b>（${esc(next.hint)}）` : 'すべての野望を果たした！'}</p>
+      <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="ok">続ける</button></p>
     </div>`;
   }
 

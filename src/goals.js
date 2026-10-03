@@ -104,9 +104,12 @@ export const GoalsMixin = {
         if (v === 0) continue;
         out.push({ key, label: g.label, icon: g.icon, now: `いま当主の血筋の ${v} 人がこの遺伝子を持っている`, target: 0, desc: `当主と子・孫から、この遺伝子を持つ人がいなくなり、${HOLD_YEARS} 年続けば達成` });
       } else if (g.kind === 'fix') {
-        const target = Math.min(0.85, Math.max(0.55, Math.round((v + 0.12) * 20) / 20));
+        // 当主ひとりのうちは、子が生まれると平均が下がりやすい（親の素質は子で半分ずつ混ざる）。目標はその見込みから決める
+        const alone = this._houseMembers().length <= 1;
+        const base = alone ? (v + 0.5) / 2 : v;
+        const target = Math.min(0.85, Math.max(0.55, Math.round((base + 0.12) * 20) / 20));
         if (v >= target) continue;
-        out.push({ key, label: g.label, icon: g.icon, now: `いま当主の血筋の平均の素質 ${Math.round(v * 100)}%`, target, desc: `当主と子・孫の平均の素質（＋の割合）を ${Math.round(target * 100)}% まで上げ、${HOLD_YEARS} 年保てば達成` });
+        out.push({ key, label: g.label, icon: g.icon, now: alone ? `いまは当主ひとり（素質 ${Math.round(v * 100)}%）。子が生まれると平均は ${Math.round(base * 100)}% くらいに下がりやすい` : `いま当主の血筋の平均の素質 ${Math.round(v * 100)}%`, target, desc: `当主と子・孫の平均の素質（＋の割合）を ${Math.round(target * 100)}% まで上げ、${HOLD_YEARS} 年保てば達成` });
       } else {
         const target = Math.min(0.9, Math.max(0.6, Math.round((v + 0.3) * 10) / 10));
         if (v >= target) continue;

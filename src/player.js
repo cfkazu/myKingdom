@@ -29,6 +29,8 @@ export const PlayerMixin = {
     this.player = { dynastyId: dynId, startYear: this.year, decisions: [], nextId: 1, asked: new Map(), joined: null, over: false, peak: this.houseStanding(d), examined: new Set(), achievements: [], goal: null };
     const h = this.head(d);
     this.addLog('event', `あなたは ${d.name}家の当主 ${h ? this.pn(h) : ''} として歴史に加わった。`, h && h.kingdomId != null ? [h.kingdomId] : []);
+    // 小さな家でも、はじめの一手（伯爵領の買い取りなど）に届く家格から始める
+    d.prestige = Math.max(d.prestige, 40);
     this._initAmbitions();
     this._goalDecision();
   },
@@ -229,7 +231,7 @@ export const PlayerMixin = {
     this.player.decisions.splice(i, 1);
     if (d.type === 'event') return this._resolveEvent(d, choice);
     if (d.type === 'news') return null;
-    if (d.type === 'rebellion' || d.type === 'war') return null;
+    if (d.type === 'rebellion' || d.type === 'war' || d.type === 'celebrate') return null;
     if (d.type === 'goal') {
       const o = d.options.find((x) => x.key === choice);
       this.setGoal(o ? o.key : null, o ? o.target : null);

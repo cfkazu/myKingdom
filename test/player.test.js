@@ -332,3 +332,28 @@ test("家格の使い道と野望：伯爵領を買い取り、祝宴・献上�
   assert.ok(w2.playerHead().claims.includes(t.t.id));
   assert.ok(w2.warTargets(k).some((x) => x.kind === "claim" && x.t === t.t), "捏造した請求権で継承戦争を起こせない");
 });
+
+test("相続：絶えた家の所領は、その家の血を引く人の家が継ぐ", () => {
+  const w = new World({ seed: "inherit-1" });
+  for (let i = 0; i < 3; i++) w.step();
+  const k = w.aliveKingdoms()[0];
+  const d = w.vassals(k).find((x) => w.countiesOf(x.id, k.id).length && w.head(x));
+  const other = w.dynasties.find((x) => !x.extinct && x !== d && w.head(x) && !w.aliveKingdoms().some((kk) => w.ruler(kk)?.dynastyId === x.id));
+  const head = w.head(d);
+  // 当主の娘がよその家に嫁いで子がいることにする
+  const dad = w.head(other);
+  const kid = w._child(head.sex === "F" ? head : w._founder("F", 30, null, { dynastyId: d.id, kingdomId: k.id }), dad, w.year - 10, { dynastyId: other.id, kingdomId: k.id });
+  if (head.sex !== "F") {
+    const mom = w.get(kid.motherId);
+    mom.fatherId = head.id;
+    head.children.push(mom.id);
+  }
+  const lands = w.countiesOf(d.id, k.id);
+  // d の人をみな亡くす
+  for (const p of w.living) if (p.alive && p.dynastyId === d.id) w._kill(p, "病死", true);
+  w._housekeeping();
+  w._feudal();
+  assert.ok(d.extinct);
+  for (const pr of lands) assert.ok(pr.holder === other.id || pr.holder == null, "相続先がおかしい");
+  assert.ok(lands.some((pr) => pr.holder === other.id), "血を引く家が継いでいない");
+});

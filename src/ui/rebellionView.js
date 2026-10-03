@@ -38,7 +38,11 @@ export function rebellionHTML(w, war, role) {
       <p class="small muted">いまの家格 ${prestige}。勝てば盟主は処刑か幽閉、反乱した家の所領は没収されます。負ければ${war.kind === 'independence' ? '地方が独立します' : 'あなたは王位を失います'}。</p>`;
   }
   if (role === 'rebel') {
-    return `${head}<div class="reb-acts">${btn('surrender', '🙇 降伏して許しを請う（家格 −20%）', null, '反乱から抜ける。罰は免れるが、家格が下がる')}</div>
+    const mercsA = war.mercsA != null && w.year <= war.mercsA;
+    return `${head}<div class="reb-acts">
+        ${btn('mercs', mercsA ? '💰 傭兵（雇っている）' : `💰 傭兵を雇う（家格 −${MERC_COST}）`, mercsA ? 1e9 : MERC_COST, '3 年のあいだ、反乱軍の兵力が 35% 増える')}
+        ${war.pitched === w.year ? '<button type="button" disabled>⚔ 決戦（今年は済み）</button>' : btn('battle', '⚔ 決戦を挑む', null, '今年もう一度会戦する（1 年に 1 回まで）。勝てば戦況が反乱軍に傾く')}
+        ${btn('surrender', '🙇 降伏して許しを請う（家格 −20%）', null, '反乱から抜ける。罰は免れるが、家格が下がる')}</div>
       <p class="small muted">あなたの家は反乱軍です。勝てば望みがかない、負ければ盟主は処刑か幽閉、所領は没収されます。</p>`;
   }
   return `${head}<div class="reb-acts">
