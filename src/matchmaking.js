@@ -141,14 +141,15 @@ export const MatchMixin = {
 
   _proposalFor(p) {
     {
-      const cands = this.marriageCandidates(p, 8).filter((o) => !o.c.gentry && this.dyn(o.c));
+      // 申し込みはよその家から来る（自分の家の人は除く）
+      const cands = this.marriageCandidates(p, 8).filter((o) => !o.c.gentry && this.dyn(o.c) && o.c.dynastyId !== p.dynastyId);
       if (!cands.length) return false;
       // 先方がいちばん乗り気な相手
       const o = cands.sort((x, y) => y.theirs - x.theirs)[0];
       p.proposals = (p.proposals ?? 0) + 1;
       const hooks = this.marriageHooks(p, o.c, Math.abs(this.age(o.c) - this.age(p)) <= 12 && this.rng.chance(0.25));
       // 申し込みには、たいてい手土産がつく
-      if (!hooks.some((h) => h.key === 'dowry')) {
+      if (!hooks.some((h) => h.key === 'dowry') && o.c.dynastyId !== p.dynastyId) {
         const n = 4 + this.rng.int(8);
         hooks.unshift({ key: 'dowry', icon: '💰', amount: n, text: `申し込みの手土産：家格 +${n}` });
       }
