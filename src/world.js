@@ -997,6 +997,11 @@ export class World {
     }
   }
 
+  // a と b が親子か（どちら向きでも）
+  parentChild(a, b) {
+    return !!a && !!b && ([a.fatherId, a.motherId].includes(b.id) || [b.fatherId, b.motherId].includes(a.id));
+  }
+
   // 野心が強く情けの薄い継承者は、王を暗殺することがある
   _intrigue() {
     for (const k of this.kingdoms) {
@@ -1004,7 +1009,8 @@ export class World {
       const r = this.ruler(k);
       const heir = this.heirOf(k);
       if (!r || !heir || !heir.alive || this.age(heir) < 18 || heir.rulerOf != null) continue;
-      if (heir.fatherId === r.id || heir.motherId === r.id) continue; // 親殺しはしない
+      // 親子どうしでは殺さない（親殺しも、子殺しも）
+      if (this.parentChild(heir, r)) continue;
       if (this.isPlayerHouse(r) || this.isPlayerHouse(heir)) continue;
       const ph = heir.pheno;
       if (ph.ambition < 70 || ph.kindness > 35) continue;

@@ -12,14 +12,16 @@ export const isSetAside = (p) => !!(p && (p.passedOver || p.imprisoned || p.cloi
 
 export const EventsMixin = {
   // その家の次の当主（王家なら王国の継承者）
-  houseHeir(d) {
+  // exclude を渡すと、その人がいなかったときの跡継ぎ（陰謀の動機を測るのに使う）
+  houseHeir(d, exclude = null) {
     const k = this.kingdoms.find((kk) => kk.alive && kk.rulerId != null && this.ruler(kk).dynastyId === d.id);
-    if (k) return this.heirOf(k);
+    if (k && !exclude) return this.heirOf(k);
+    if (k) return this.successionLine(k, 4).find((p) => !exclude.has(p.id)) ?? null;
     const head = this.head(d);
     let best = null;
     let bestS = -Infinity;
     for (const p of this.living) {
-      if (!p.alive || p === head || p.dynastyId !== d.id || isSetAside(p)) continue;
+      if (!p.alive || p === head || p.dynastyId !== d.id || isSetAside(p) || exclude?.has(p.id)) continue;
       const a = this.age(p);
       const s = (head && (p.fatherId === head.id || p.motherId === head.id) ? 300 : 0) + (p.sex === 'M' ? 100 : 0) + Math.min(a, 70);
       if (s > bestS) {
@@ -56,20 +58,24 @@ export const EventsMixin = {
     // 2. 狂気の兆し（当主以外の近親）
     const mad = this.living.find((p) => p.alive && p.dynastyId === d.id && p.mad && p !== head && !p.imprisoned && !p.madAsked && this.age(p) >= 16);
     if (mad) cands.push(() => this._evMadness(d, mad));
-    // 3. 野心的な弟（当主の子かきょうだいで、跡継ぎでない）
-    const plotter = this.living.find(
-      (p) =>
-        p.alive &&
-        p.dynastyId === d.id &&
-        p !== head &&
-        p !== heir &&
-        !isSetAside(p) &&
-        this.age(p) >= 18 &&
-        p.pheno.ambition > 65 &&
-        p.pheno.kindness < 45 &&
-        (p.fatherId === head.id || p.motherId === head.id || (head.fatherId != null && p.fatherId === head.fatherId)),
-    );
-    if (plotter && this._cool('plot', 10)) cands.push(() => this._evPlot(d, plotter, heir));
+    // 3. 野心的な身内：消せば自分が継ぐ人がいるときだけ企む（親子どうしは企まない）
+    const motive = (p) => {
+      // 跡継ぎ本人なら、当主を消せば家を継ぐ
+      if (p === heir) return this.parentChild(p, head) ? null : head;
+      // 跡継ぎを消せば、自分が次の跡継ぎになる
+      if (!heir || this.parentChild(p, heir)) return null;
+      return this.houseHeir(d, new Set([heir.id])) === p ? heir : null;
+    };
+    let plot = null;
+    for (const p of this.living) {
+      if (!p.alive || p.dynastyId !== d.id || p === head || isSetAside(p) || this.age(p) < 18 || p.pheno.ambition <= 65 || p.pheno.kindness >= 45) continue;
+      const target = motive(p);
+      if (target && target.alive) {
+        plot = { p, target };
+        break;
+      }
+    }
+    if (plot && this._cool('plot', 10)) cands.push(() => this._evPlot(d, plot.p, plot.target));
     // 4. 不満な諸侯の懐柔（王のとき）
     if (k && this._cool('appease', 7)) {
       const angry = this.vassals(k).filter((v) => (v.opinion ?? 0) < -15 && this.head(v)).sort((a, b) => (a.opinion ?? 0) - (b.opinion ?? 0))[0];
@@ -122,14 +128,15 @@ export const EventsMixin = {
 
   // ───────── 3. 野心的な弟 ─────────
 
-  _evPlot(d, p, heir) {
+  _evPlot(d, p, target) {
     const head = this.playerHead();
-    const target = heir && heir !== p ? heir : head;
+    const royal = !!this.playerKingdom();
+    const why = target === head ? `当主の ${this.pn(target)} がいなくなれば、跡継ぎの ${this.pn(p)} がすぐに${royal ? '王位' : '家'}を継ぐ。` : `跡継ぎの ${this.pn(target)} がいなくなれば、次に${royal ? '王位' : '家'}を継ぐのは ${this.pn(p)} だ。`;
     this._event(
       'plot',
       p.id,
       '野心的な身内',
-      `${this.pn(p)}（${this.age(p)}歳・野心 ${Math.round(p.pheno.ambition)}）が、夜更けに見知らぬ者と会っているという。${this.pn(target)} の命を狙っているとの噂だ。`,
+      `${this.pn(p)}（${this.age(p)}歳・野心 ${Math.round(p.pheno.ambition)}・慈愛 ${Math.round(p.pheno.kindness)}）が、夜更けに見知らぬ者と会っているという。${this.pn(target)} の命を狙っているとの噂だ。${why}`,
       [
         { id: 'confront', label: '問いただす', desc: '半々で、悔い改めるか、国を出奔して恨みを抱く' },
         { id: 'exile', label: '国外へ追い出す', desc: '身の安全は守れる。ただし王国なら王位への請求権を持って出ていく' },
