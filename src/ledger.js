@@ -181,7 +181,9 @@ export const LedgerMixin = {
       if (prev) this._deed(h, 'head', `${d.name}家の当主となる`);
       if (prev && this.player && !this.player.over && d.id === this.player.dynastyId) {
         // 捏造した請求権は、新しい当主に引き継ぐ
-        for (const kid of d.fabClaims ?? []) if (this.kingdoms[kid]?.alive && !h.claims.includes(kid) && h.rulerOf !== kid) h.claims.push(kid);
+        // 捏造した請求権は 2 代で薄れる（当主が 2 回代わると消える）
+        d.fabClaims = (d.fabClaims ?? []).map((x) => (typeof x === 'number' ? { id: x, gens: 2 } : x)).map((x) => ({ ...x, gens: x.gens - 1 })).filter((x) => x.gens > 0);
+        for (const x of d.fabClaims) if (this.kingdoms[x.id]?.alive && !h.claims.includes(x.id) && h.rulerOf !== x.id) h.claims.push(x.id);
         this._newsHeadChange(prev, h, d);
       }
     }

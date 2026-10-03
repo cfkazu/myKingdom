@@ -1674,3 +1674,10 @@ select:focus-visible {
   color: var(--gold);
   font-weight: 700;
 }
+.lead-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}

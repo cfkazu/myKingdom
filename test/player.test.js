@@ -357,3 +357,37 @@ test("相続：絶えた家の所領は、その家の血を引く人の家が�
   for (const pr of lands) assert.ok(pr.holder === other.id || pr.holder == null, "相続先がおかしい");
   assert.ok(lands.some((pr) => pr.holder === other.id), "血を引く家が継いでいない");
 });
+
+test("王の手：継承戦争は +80 まで負けを認めない、捏造した請求権は 2 代で消える、城と出陣", () => {
+  const w = new World({ seed: "king-2" });
+  const k = w.aliveKingdoms().find((x) => w.neighbors(x).length);
+  w.setPlayer(w.ruler(k).dynastyId);
+  for (const d of [...w.pendingDecisions()]) w.decide(d.id, "none");
+  const my = w.playerDynasty();
+  my.prestige = 1000;
+  const t = w.fabricateTargets()[0].t;
+  w.fabricate(t.id);
+  const war = w.playerDeclareWar(t.id, w.playerHead().id);
+  war.score = 60;
+  w.warAction(war.id, "demand");
+  assert.ok(!war.ended, "継承戦争が +60 で終わってしまう");
+  war.score = 85;
+  w.warAction(war.id, "demand");
+  assert.ok(war.ended);
+  // 2 代で消える
+  const tk = w.fabricateTargets()[0]?.t;
+  if (tk) {
+    w.fabricate(tk.id);
+    assert.equal(my.fabClaims.find((x) => x.id === tk.id).gens, 2);
+  }
+  // 城
+  const c = w.castleTargets()[0];
+  const before = w.countyLevy(c.pr);
+  w.buildCastle(c.pr.id);
+  assert.ok(w.countyLevy(c.pr) > before * 1.25);
+  // 出陣：後方にとどまれば王は指揮をとらない
+  w.player.kingLeads = false;
+  assert.notEqual(w.commander(k), w.ruler(k));
+  w.player.kingLeads = true;
+  assert.equal(w.commander(k), w.ruler(k));
+});

@@ -108,6 +108,33 @@ export const FavorsMixin = {
     return `${o.pr.name}伯領を買い取った（家格 −${o.price}）。${king ? (o.overLimit ? '王領が上限を超えたので、恩賞で諸侯に与えることになるかもしれない。' : '王領になった。') : duke ? `${o.du.name}公になった！` : ''}`;
   },
 
+  // 城を築ける王領（王だけ）：その地方の兵が 30% 増える
+  castleTargets() {
+    const k = this.playerKingdom();
+    if (!k) return [];
+    return this.demesneOf(k)
+      .filter((pr) => !pr.castle)
+      .map((pr) => ({ pr, price: 30, border: [...pr.neighbors].some((q) => this.provinces[q].ownerId !== k.id && this.provinces[q].ownerId >= 0) }))
+      .sort((a, b) => Number(b.border) - Number(a.border) || b.pr.pop - a.pr.pop)
+      .slice(0, 5);
+  },
+
+  buildCastle(prId) {
+    const o = this.castleTargets().find((x) => x.pr.id === prId);
+    if (!o) return null;
+    if (!this._spend(o.price)) return `家格が足りません（${o.price} 要る）。`;
+    o.pr.castle = true;
+    this.addLog('event', `${this.pn(this.ruler(this.playerKingdom()))} は ${o.pr.name} に城を築いた。`, [o.pr.ownerId]);
+    return `${o.pr.name}に城を築いた（家格 −${o.price}）。この地方の兵が 30% 増える。`;
+  },
+
+  // いまの家格で買える、いちばんよい伯爵領（帯で知らせる）
+  affordableBuy() {
+    const my = this.playerDynasty();
+    if (!my) return null;
+    return this.buyableCounties().find((o) => o.price <= my.prestige && !o.overLimit) ?? null;
+  },
+
   // 請求権を捏造できる隣国
   fabricateTargets() {
     const k = this.playerKingdom();
@@ -130,9 +157,10 @@ export const FavorsMixin = {
     if (!this._spend(o.price)) return `家格が足りません（${o.price} 要る）。`;
     const h = this.playerHead();
     h.claims.push(kid);
-    // 捏造した請求権は家の財産：当主が代わっても引き継ぐ
+    // 捏造した請求権は家の財産：当主が代わっても引き継ぐ（2 代まで）
     const my = this.playerDynasty();
-    my.fabClaims = [...new Set([...(my.fabClaims ?? []), kid])];
+    // 2 代のあいだ（当主が 2 回代わるまで）残る
+    my.fabClaims = [...(my.fabClaims ?? []).filter((x) => x.id !== kid), { id: kid, gens: 2 }];
     this.addLog('war', `${this.pn(h)} の書記官たちが、${this.kn(o.t)} の王位への古い請求権を「見つけ出した」。`, [o.t.id]);
     return `${o.t.name}の王位への請求権を得た（家格 −${o.price}）。王国タブから継承戦争を起こせます。勝てば ${o.t.name}の王位が手に入る。`;
   },

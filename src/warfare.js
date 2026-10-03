@@ -14,7 +14,7 @@ export const WarfareMixin = {
     const pk = (x) => this.power(this.kingdoms[x]);
     const mine = this.alliesOf(k.id).filter((a) => a !== t.id && !this.allied(a, t.id) && this.kingdoms[a].alive);
     const theirs = this.alliesOf(t.id).filter((a) => a !== k.id && !this.allied(a, k.id) && this.kingdoms[a].alive);
-    const coalition = kind === 'conquest' && this.provincesOf(k).length > this.provinces.length * 0.33;
+    const coalition = (kind === 'conquest' || kind === 'claim') && this.provincesOf(k).length > this.provinces.length * 0.33;
     const coal = coalition ? this.aliveKingdoms().filter((o) => o !== k && o !== t && !this.allied(o.id, k.id) && !theirs.includes(o.id)).map((o) => o.id) : [];
     // 同盟国は兵の半分で加勢する。加わる見込みは、こちらの同盟国 5 割・相手の同盟国 7.5 割・包囲網 6 割
     const my = this.power(k) + mine.reduce((s, a) => s + pk(a) * 0.5 * 0.5, 0);
@@ -90,7 +90,9 @@ export const WarfareMixin = {
       return `和平が結ばれた${cost ? `（賠償 家格 −${cost}）` : ''}。10 年の休戦になる。`;
     }
     if (action === 'demand') {
-      if (v.score < 50) return '戦況が +50 を超えるまで、相手は負けを認めません。';
+      // 王位がかかる継承戦争は、相手もなかなか負けを認めない
+      const need = w.kind === 'claim' ? 80 : 50;
+      if (v.score < need) return `戦況が +${need} を超えるまで、相手は負けを認めません。`;
       this._endWar(w, win, '相手が負けを認めた');
       return '相手は負けを認めた。';
     }

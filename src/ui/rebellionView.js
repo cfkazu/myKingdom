@@ -2,6 +2,7 @@
 
 import { MERC_COST, CONCEDE_COST } from '../rebellion.js';
 import { esc, richText } from './util.js';
+import { leadHTML } from './warView.js';
 
 export function rebellionHTML(w, war, role) {
   const s = w.rebelStatus(war);
@@ -28,6 +29,7 @@ export function rebellionHTML(w, war, role) {
       .join('');
     return `${head}
       <p class="small reb-tip">${tip}</p>
+      ${leadHTML(w)}
       <div class="reb-acts">
         ${btn('mercs', `💰 傭兵を雇う（家格 −${MERC_COST}）`, s.mercs ? 1e9 : MERC_COST, '3 年のあいだ、王の兵力が 35% 増える')}
         ${war.pitched === w.year ? '<button type="button" disabled title="決戦は 1 年に 1 回まで">⚔ 決戦（今年は済み）</button>' : btn('battle', '⚔ 決戦を挑む', null, '今年もう一度会戦する（1 年に 1 回まで）。勝てば戦況が王に傾き、負ければ反乱軍に傾く。兵力の比が悪いときは危ない')}

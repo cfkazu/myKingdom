@@ -66,7 +66,8 @@ export class RealmPanel {
               <td>${b('buy', o.pr.id, `買う −${o.price}`, o.price, `${o.crown ? '王' : `${o.d.name}家`}から${o.pr.name}伯領を買う。売り手は家格の半分を受け取る`)}</td></tr>`,
           )
           .join('')}</tbody></table>` : '<p class="small muted">いま買い取れる伯爵領はありません（売り手は 2 つ以上持つ家だけ）。</p>'}
-      ${fabs.length ? `<div class="small"><b>📜 請求権を捏造する</b>（その国に継承戦争を起こせるようになる）</div><div class="chips small">${fabs.map((o) => `<span>${esc(o.t.name)}${o.truce ? `<span class="bad">（休戦中・あと ${o.truce} 年は宣戦できない）</span>` : ''}${b('fab', o.t.id, `−${o.price}`, o.price, `${o.t.name}の王位への請求権を得る（家の財産として、当主が代わっても残る）。継承戦争に勝てば王位が手に入る`)}</span>`).join('')}</div>` : ''}
+      ${king && w.castleTargets().length ? `<div class="small"><b>🏯 城を築く</b>（王領の兵が 30% 増える。国境の地方から）</div><div class="chips small">${w.castleTargets().map((o) => `<span>${esc(o.pr.name)}${o.border ? '<span class="muted">（国境）</span>' : ''}${b('castle', o.pr.id, `−${o.price}`, o.price, `${o.pr.name}に城を築く。この地方の兵が 30% 増える（王領のあいだ）`)}</span>`).join('')}</div>` : ''}
+      ${fabs.length ? `<div class="small"><b>📜 請求権を捏造する</b>（その国に継承戦争を起こせるようになる）</div><div class="chips small">${fabs.map((o) => `<span>${esc(o.t.name)}${o.truce ? `<span class="bad">（休戦中・あと ${o.truce} 年は宣戦できない）</span>` : ''}${b('fab', o.t.id, `−${o.price}`, o.price, `${o.t.name}の王位への請求権を得る（家の財産として、当主が 2 回代わるまで残る）。継承戦争に勝てば王位が手に入る`)}</span>`).join('')}</div>` : ''}
     </div>`;
   }
 

@@ -83,6 +83,9 @@ export const AmbitionsMixin = {
       this.addLog('dynasty', `🏆 ${d.name}家は野望「${a.label}」を果たした（${this.year - this.player.startYear} 年目）。家格 +25。`);
       // 時間を止めて祝う
       this._decision({ type: 'celebrate', key: a.key, icon: a.icon, label: a.label, years: this.year - this.player.startYear, milestone: a.key.startsWith('y') });
+      // 祝いのカードは、ほかのカードより先に出す
+      const dd = this.player.decisions.pop();
+      this.player.decisions.unshift(dd);
     }
   },
 

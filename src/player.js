@@ -302,12 +302,12 @@ export const PlayerMixin = {
         return `${d.label}に加わった。派閥が十分に強くなれば、反乱が始まる。`;
       }
       if (choice === 'wait') {
-        this.player.asked.set(`f${d.kingdomId}`, this.year - 5);
+        this.player.asked.set(`f${d.kingdomId}`, this.year - 22);
         return '返事を保留した。3 年ほどしたら、また誘いが来る。';
       }
       this.player.joined = null;
       this.player.asked.set(`f${d.kingdomId}`, this.year);
-      return '誘いを断った。王への忠誠は変わらない。';
+      return '誘いを断った。王への忠誠は変わらない。この派閥からは 25 年ほど誘いが来ない。';
     }
     return null;
   },
@@ -424,6 +424,8 @@ export const PlayerMixin = {
 
   _playerTick() {
     if (!this.player || this.player.over) return;
+    // 待っているあいだに結婚した・亡くなった人の縁談のカードは片づける
+    this.player.decisions = this.player.decisions.filter((x) => x.type !== 'marriage' || (this.get(x.personId)?.alive && this.get(x.personId).spouseId == null));
     const d = this.playerDynasty();
     if (d.extinct || !this.head(d)) {
       this.player.over = true;
@@ -438,7 +440,8 @@ export const PlayerMixin = {
     this._marriageProposals();
     // 不満な派閥への誘い
     const liege = this.playerLiege();
-    if (liege && !this.player.joined && !this._askedRecently(`f${liege.id}`, 8)) {
+    // 断ったら 25 年は誘わない（保留なら 3 年後）
+    if (liege && !this.player.joined && !this._askedRecently(`f${liege.id}`, 25)) {
       const f = (liege.factions ?? []).find((x) => x.kind !== 'claimant' || this.get(x.leaderId)?.dynastyId !== d.id);
       if (f && (d.opinion ?? 0) < 0 && this.countiesOf(d.id, liege.id).length) {
         const labels = { usurp: '王位を奪おうとする派閥', claimant: '請求者を王に就けようとする派閥', independence: '独立をめざす派閥' };

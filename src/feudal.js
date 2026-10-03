@@ -185,7 +185,8 @@ export const FeudalMixin = {
   },
 
   countyLevy(pr) {
-    return pr.pop * 0.025 * (1 - pr.devastation * 0.5);
+    // 城を築いた地方は、兵が 30% 増える
+    return pr.pop * 0.025 * (1 - pr.devastation * 0.5) * (pr.castle ? 1.3 : 1);
   },
 
   // 王国の兵力（千人）。王領はそのまま、諸侯の土地は忠誠に応じて。exclude の家の土地は数えない（反乱中など）
@@ -326,7 +327,8 @@ export const FeudalMixin = {
     const ph = r.pheno;
     if (demesne.length < limit && ph.ambition > 60 && ph.kindness < 40 && k.regentId == null) {
       const target = this.vassals(k)
-        .filter((d) => (d.opinion ?? 0) < -30)
+        // 反乱をともに勝った同志の家は、20 年は取り上げない
+        .filter((d) => (d.opinion ?? 0) < -30 && !((d.pardonUntil ?? 0) > this.year))
         .sort((a, b) => (a.opinion ?? 0) - (b.opinion ?? 0))[0];
       if (target && this.rng.chance(0.08)) {
         const pr = this.countiesOf(target.id, k.id).sort((a, b) => b.pop - a.pop)[0];

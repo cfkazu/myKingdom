@@ -827,9 +827,13 @@ export class World {
     if (this.age(p) >= 75) opts.push([30, '長命王', `${this.age(p)}歳まで生きたことから`]);
     if (len >= 45) opts.push([30, '長治王', `${len}年にわたる治世から`]);
     opts.sort((a, b) => b[0] - a[0]);
-    if (!opts.length) return null;
-    p.epithetWhy = opts[0][2];
-    return opts[0][1];
+    // 直前 3 代の王と同じあだ名は避ける（「慈悲王」が続かないように）
+    const k = this.kingdoms[p.rulerOfEver];
+    const recent = new Set((k?.rulers ?? []).filter((x) => x.id !== p.id).slice(-3).map((x) => x.epithet).filter(Boolean));
+    const pick = opts.find((o) => !recent.has(o[1])) ?? null;
+    if (!pick) return null;
+    p.epithetWhy = pick[2];
+    return pick[1];
   }
 
   _succeed(k, dead) {
@@ -1258,9 +1262,11 @@ export class World {
   _childName(sex, w, h, culture, dynastyId) {
     // 生きているきょうだいと同じ名前は避ける
     // 生きているきょうだい・親と同じ名前は避ける（誰が誰かわかりやすく）
+    // 同じ家で生きている人とも、なるべくかぶらないように
     const taken = new Set([...w.children.map((id) => this.get(id)).filter((c) => c.alive), w, h].filter((x) => x.alive).map((c) => c.name));
-    for (let tries = 0; tries < 6; tries++) {
-      const n = this._pickChildName(sex, w, h, culture, dynastyId);
+    for (const p of this.living) if (p.alive && p.dynastyId === dynastyId) taken.add(p.name);
+    for (let tries = 0; tries < 10; tries++) {
+      const n = tries < 6 ? this._pickChildName(sex, w, h, culture, dynastyId) : givenName(this.rng, culture, sex);
       if (!taken.has(n)) return n;
     }
     return givenName(this.rng, culture, sex);
@@ -1334,13 +1340,23 @@ export class World {
     return [...out].map((id) => this.kingdoms[id]).filter((x) => x.alive);
   }
 
+  // あなたの国の王が自ら出陣するか（既定は後方にとどまる）
+  kingLeads(k) {
+    const pk = this.player && !this.player.over ? this.playerKingdom() : null;
+    if (pk && pk.id === k.id) return !!this.player.kingLeads;
+    return null;
+  }
+
   commander(k, excludeDynastyId = null) {
     const r = this.ruler(k);
-    if (r && this.age(r) >= 18 && this.age(r) <= 65 && !r.pheno.hemophilia && this.martial(r) >= 50) return r;
+    const lead = this.kingLeads(k);
+    if (r && lead !== false && this.age(r) >= 18 && this.age(r) <= 65 && !r.pheno.hemophilia && (lead === true || this.martial(r) >= 50)) return r;
     let best = null;
     let bestM = -1;
     for (const p of this.living) {
       if (!p.alive || p.kingdomId !== k.id || p.pheno.hemophilia) continue;
+      // 王が後方にとどまるなら、王は指揮をとらない
+      if (lead === false && p === r) continue;
       if (excludeDynastyId && excludeDynastyId.has(p.dynastyId)) continue;
       const a = this.age(p);
       if (a < 18 || a > 60) continue;
@@ -1381,7 +1397,8 @@ export class World {
       w.attackerAllies = this.alliesOf(attacker.id).filter((a) => a !== defender.id && !this.allied(a, defender.id) && this.rng.chance(0.5));
       w.defenderAllies = this.alliesOf(defender.id).filter((a) => a !== attacker.id && !this.allied(a, attacker.id) && !w.attackerAllies.includes(a) && this.rng.chance(0.75));
       // 包囲網：大陸の 3 分の 1 を超える国が攻めてきたら、ほかの国々が守り手に味方する
-      if (kind === 'conquest' && this.provincesOf(attacker).length > this.provinces.length * 0.33) {
+      // 大国が攻めると（継承戦争でも）包囲網ができる
+      if ((kind === 'conquest' || kind === 'claim') && this.provincesOf(attacker).length > this.provinces.length * 0.33) {
         for (const o of this.aliveKingdoms()) {
           if (o === attacker || o === defender || this.allied(o.id, attacker.id) || w.defenderAllies.includes(o.id) || w.attackerAllies.includes(o.id)) continue;
           if (this.rng.chance(0.6)) w.defenderAllies.push(o.id);
@@ -1479,12 +1496,12 @@ export class World {
       for (const d of this.vassals(main)) if ((d.opinion ?? 0) < -15 && !(w.loyalists ?? []).includes(d.id)) ex.add(d.id);
       const base = this.power(main, ex) + w.defenderAllies.reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.4, 0);
       // 傭兵を雇っているあいだは 35% 増し
-      return base * (w.mercs != null && this.year <= w.mercs ? 1.35 : 1);
+      return base * (w.mercs != null && this.year <= w.mercs ? 1.35 : 1) * (this.kingLeads(main) ? 1.1 : 1);
     }
     const allies = side === 'A' ? w.attackerAllies : w.defenderAllies;
     const base = this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.5, 0);
-    // 傭兵を雇った側は、3 年のあいだ 35% 増し
-    return base * (w.mercs != null && this.year <= w.mercs && w.mercSide === side ? 1.35 : 1);
+    // 傭兵を雇った側は、3 年のあいだ 35% 増し。王の親征は士気で 10% 増し
+    return base * (w.mercs != null && this.year <= w.mercs && w.mercSide === side ? 1.35 : 1) * (this.kingLeads(main) ? 1.1 : 1);
   }
 
   _warsStep() {
@@ -1766,7 +1783,10 @@ export class World {
       return;
     }
     this._crown(D, newKing, 'usurp');
-    for (const id of w.members ?? []) this._remember(this.dynasties[id], 25, '勝利の同志', D);
+    for (const id of w.members ?? []) {
+      this._remember(this.dynasties[id], 25, '勝利の同志', D);
+      this.dynasties[id].pardonUntil = this.year + 20;
+    }
   }
 
   _endIndependence(w, result, why) {
@@ -1892,11 +1912,12 @@ export class World {
 
   // ───────── 後片づけと記録 ─────────
 
-  // 家格の年収：王 2.5、公爵 1.2、伯爵は伯爵領 1 つにつき 0.6
+  // 家格の年収：王 2.5、公爵 1.6、伯爵は 0.4＋伯爵領 1 つにつき 0.6、無領の家は宮廷勤めの 0.4
   prestigeIncome(d) {
     if (this.kingdoms.some((k) => k.alive && this.ruler(k)?.dynastyId === d.id)) return 2.5;
     const r = this.houseRank(d);
-    return r === 'duke' ? 1.2 : r === 'count' ? 0.6 * this.countiesOf(d.id).length : 0;
+    // 宮廷勤め（どの家にも +0.4）と、所領からの収入
+    return 0.4 + (r === 'duke' ? 1.2 : r === 'count' ? 0.6 * this.countiesOf(d.id).length : 0);
   }
 
   _housekeeping() {

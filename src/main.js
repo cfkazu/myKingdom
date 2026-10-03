@@ -83,9 +83,18 @@ class App {
       e.stopPropagation();
       const w = this.world;
       const arg = b.dataset.favorArg === '' ? null : Number(b.dataset.favorArg);
-      const msg = { feast: () => w.feast(), tribute: () => w.tribute(), buy: () => w.buyCounty(arg), fab: () => w.fabricate(arg) }[b.dataset.favor]?.();
+      const msg = { feast: () => w.feast(), tribute: () => w.tribute(), buy: () => w.buyCounty(arg), fab: () => w.fabricate(arg), castle: () => w.buildCastle(arg) }[b.dataset.favor]?.();
       if (msg) this.toast(msg);
       this.map.draw();
+      this.renderAll();
+    });
+    // 王の出陣
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-lead]');
+      if (!b || !this.world.player) return;
+      e.stopPropagation();
+      this.world.player.kingLeads = b.dataset.lead === '1';
+      this.toast(this.world.player.kingLeads ? '王が自ら出陣する。兵の士気が上がるが、戦死の恐れがある。' : '王は後方にとどまり、指揮は家臣に任せる。');
       this.renderAll();
     });
     // 他国との戦争の手と、同盟の破棄
@@ -120,7 +129,15 @@ class App {
       this.logFilter = e.target.value;
       this.renderLog(true);
     });
-    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
+    document.querySelectorAll('.tabs button').forEach((b) =>
+      b.addEventListener('click', () => {
+        // 王国タブを開いたら、まず自分の国（王なら自国、諸侯なら主君の国）を出す
+        const w = this.world;
+        const realm = w.player && !w.player.over ? (w.playerKingdom() ?? w.playerLiege()) : null;
+        if (b.dataset.tab === 'realm' && realm && this.tab !== 'realm') this.selectedKingdom = realm.id;
+        this.showTab(b.dataset.tab);
+      }),
+    );
     document.querySelectorAll('[data-event]').forEach((b) =>
       b.addEventListener('click', () => {
         const w = this.world;
@@ -366,7 +383,10 @@ class App {
     });
     const idle = pk && !ext.length && !w.realmRebellions().length ? `<div class="lands-bar small">⚔ 戦争はしていません <button type="button" class="small" data-gorealm="${pk.id}">宣戦・同盟を見る</button></div>` : '';
     const realm = pk ?? w.playerLiege();
-    const purse = realm ? `<div class="lands-bar small">🎖 家格 <b>${Math.round(d.prestige)}</b>（年 +${w.prestigeIncome(d).toFixed(1)}・毎年 2.5% 目減り）<button type="button" class="small" data-gorealm="${realm.id}">使い道を見る</button></div>` : '';
+    // 買える額まで貯まったら知らせる
+    const buy = realm ? w.affordableBuy() : null;
+    const favor = (d.favorUntil ?? 0) > w.year ? `・<span class="good">🎁 献上の効き目 あと ${d.favorUntil - w.year} 年（王が伯爵領を与えるときは、あなたの家に来る）</span>` : '';
+    const purse = realm ? `<div class="lands-bar small">🎖 家格 <b>${Math.round(d.prestige)}</b>（年 +${w.prestigeIncome(d).toFixed(1)}・毎年 2.5% 目減り）${favor}<button type="button" class="small" data-gorealm="${realm.id}">使い道を見る</button></div>${buy ? `<div class="lands-bar small good">💰 いまの家格で <b>${buy.pr.name}伯領</b>を買えます（−${buy.price}）${buy.dukeLeft != null && buy.dukeLeft <= 0 ? `：<b>これで${buy.du.name}公に！</b>` : buy.dukeLeft != null ? `（${buy.du.name}公まで あと ${buy.dukeLeft}）` : ''}<button type="button" class="small primary" data-favor="buy" data-favor-arg="${buy.pr.id}">買う</button></div>` : ''}` : '';
     const next = w.nextAmbition();
     const sc = w.score();
     const amb = next ? `<div class="lands-bar small">🏆 <b>野望：${next.icon} ${next.label}</b>　${w.ambitionProgress(next.key)}<span class="muted">（${next.hint}）</span><span class="stars" title="★＝果たした野望 ${sc.done}/${sc.total} ＋ 血の目標 ${sc.goals}">★${sc.stars}</span></div>` : `<div class="lands-bar small">🏆 すべての野望を果たした！ <span class="stars">★${sc.stars}</span></div>`;
