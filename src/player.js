@@ -436,6 +436,15 @@ export const PlayerMixin = {
     }
     const st = this.houseStanding(d);
     if (st.rank > this.player.peak.rank) this.player.peak = st;
+    // 身分が下がったら、理由とともに知らせる
+    const last = this.player.lastStanding;
+    if (last && st.rank < last.rank && st.rank < 3) {
+      const why = st.rank === 1 && last.rank === 2 ? '公爵領の伯爵領が過半を割り、公爵位を失いました（買い取り・恩賞・相続で過半に戻せば公爵に戻れます）。' : st.rank === 0 ? '伯爵領をすべて失いました（割譲・没収・反乱の敗北など）。買い取りや献上で取り戻せます。' : '王位を失いました（内乱・継承戦争・継承など）。';
+      this._news({ icon: '📉', title: `${d.name}家は${last.label}から${st.label}になった`, body: why, why: '家の格は、持っている爵位で決まります。', means: `いまの所領：${this.countiesOf(d.id).map((p) => p.name).join('・') || 'なし'}。`, flashKind: 'lost', pids: this.countiesOf(d.id).map((p) => p.id) });
+    }
+    this.player.lastStanding = st;
+    // 戦がすべて終わったら、王の出陣はやめて後方に戻る
+    if (this.player.kingLeads && !this.externalWars().length && !this.realmRebellions().length) this.player.kingLeads = false;
     this._playerFostering();
     this._marriageProposals();
     // 不満な派閥への誘い

@@ -1681,3 +1681,23 @@ select:focus-visible {
   gap: 6px;
   margin: 4px 0;
 }
+
+/* スマホ幅：決断へ飛ぶボタン */
+#jump-decision {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 50;
+  margin-bottom: 64px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--gold);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+#jump-decision[hidden] {
+  display: none;
+}

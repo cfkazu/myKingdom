@@ -44,6 +44,7 @@ export class DecisionPanel {
       return;
     }
     const d = w.pendingDecisions()[0];
+    this._jumpButton(!!d);
     if (!d) {
       this.el.hidden = true;
       this.el.innerHTML = '';
@@ -151,6 +152,28 @@ export class DecisionPanel {
       ${items}
       <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="ok">わかった</button></p>
     </div>`;
+  }
+
+  // スマホ幅で、決断のカードが画面の外にあるときは「決断へ」のボタンを浮かべる
+  _jumpButton(show) {
+    let b = document.getElementById('jump-decision');
+    if (!b) {
+      b = document.createElement('button');
+      b.id = 'jump-decision';
+      b.type = 'button';
+      b.textContent = '⬇ 決断を待っています（押すと移動）';
+      b.addEventListener('click', () => this.el.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      document.body.append(b);
+      // カードが見えているあいだは隠す
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver((es) => {
+          this.cardVisible = es[0]?.isIntersecting ?? false;
+          b.hidden = !this.wantJump || this.cardVisible;
+        }).observe(this.el);
+      }
+    }
+    this.wantJump = show && window.innerWidth < 700;
+    b.hidden = !this.wantJump || this.cardVisible;
   }
 
   // ───────── はじめに家を選ぶ ─────────
@@ -348,7 +371,7 @@ export class DecisionPanel {
       <p>盟主は ${personLink(w, leader)}。加わっている家：${members.map((m) => esc(m.name)).join('・')}家。</p>
       <p class="small muted">加わると、派閥が十分に強くなったときに反乱が始まり、あなたの家も戦います。勝てば見返りがありますが、負ければ盟主の家は所領を失い、同志も罰を受けます。いまの反乱軍と王の兵力の比：およそ ${Math.round(odds.ratio * 100)}%</p>
       <p class="choices"><button type="button" class="primary" data-id="${d.id}" data-choice="join">加わる</button><button type="button" data-id="${d.id}" data-choice="wait">保留する（3 年後にまた）</button><button type="button" data-id="${d.id}" data-choice="decline">断る</button></p>
-      <p class="small muted">断っても罰はありません（8 年ほどは誘われなくなります）。加わったあとも、派閥が立ち上がるまでは何も起きません。</p>
+      <p class="small muted">断っても罰はありません（この派閥からは 25 年ほど誘われなくなります。保留なら 3 年後）。加わったあとも、派閥が立ち上がるまでは何も起きません。</p>
     </div>`;
   }
 

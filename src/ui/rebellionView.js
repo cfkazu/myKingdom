@@ -13,7 +13,9 @@ export function rebellionHTML(w, war, role) {
   const pos = Math.max(0, Math.min(100, 50 + s.score / 2));
   const meter = `<div class="reb-meter" title="戦況 ${Math.round(s.score)}（+100 で反乱軍の勝ち、−100 で王の勝ち）"><span class="reb-side">王</span><div class="reb-bar"><i style="left:${pos}%"></i></div><span class="reb-side">反乱軍</span></div>`;
   const lean = s.score <= -30 ? '王が優勢' : s.score >= 30 ? '反乱軍が優勢' : '五分五分';
-  const head = `<p class="small">兵力 王 ${Math.round(s.king)} 対 反乱軍 ${Math.round(s.rebels)}（反乱軍は王の ${s.ratio.toFixed(2)} 倍）・戦況 ${Math.round(s.score)}（${lean}）・長くてもあと ${s.yearsLeft} 年で決着${s.mercs ? '・<span class="good">傭兵が王の側で戦っている</span>' : ''}</p>${meter}
+  // 戦況は、あなたの側から見た数字で出す（+ ならあなたの側が優勢）
+  const mine = role === 'rebel' ? s.score : -s.score;
+  const head = `<p class="small">兵力 王 ${Math.round(s.king)} 対 反乱軍 ${Math.round(s.rebels)}（反乱軍は王の ${s.ratio.toFixed(2)} 倍）・戦況 <b>${mine > 0 ? '+' : ''}${Math.round(mine)}</b>（あなたの側から・${lean}）・長くてもあと ${s.yearsLeft} 年で決着${s.mercs ? '・<span class="good">傭兵が王の側で戦っている</span>' : ''}</p>${meter}
     <p class="small muted">戦は毎年の会戦で進み、戦況が ±100 に届くか 7 年たつと決着します。兵力の多い側・指揮の高い側が会戦に勝ちやすい。忠誠が −15 を下回る諸侯は、王のために兵を出しません。</p>`;
   const btn = (act, label, cost, title, arg = '') => `<button type="button" class="${cost != null && prestige < cost ? '' : 'primary'}" data-reb="${war.id}" data-reb-act="${act}" data-reb-arg="${arg}"${cost != null && prestige < cost ? ' disabled' : ''} title="${esc(title)}">${label}</button>`;
   if (role === 'king') {

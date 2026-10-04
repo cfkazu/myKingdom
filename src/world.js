@@ -1499,7 +1499,9 @@ export class World {
       return base * (w.mercs != null && this.year <= w.mercs ? 1.35 : 1) * (this.kingLeads(main) ? 1.1 : 1);
     }
     const allies = side === 'A' ? w.attackerAllies : w.defenderAllies;
-    const base = this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * 0.5, 0);
+    // 包囲網の国々は本気で加勢する（兵の 8 割）。ふつうの同盟国は半分
+    const share = w.coalition && side === 'D' ? 0.8 : 0.5;
+    const base = this.power(main) + allies.filter((a) => this.kingdoms[a].alive).reduce((s, a) => s + this.power(this.kingdoms[a]) * share, 0);
     // 傭兵を雇った側は、3 年のあいだ 35% 増し。王の親征は士気で 10% 増し
     return base * (w.mercs != null && this.year <= w.mercs && w.mercSide === side ? 1.35 : 1) * (this.kingLeads(main) ? 1.1 : 1);
   }
@@ -1673,7 +1675,9 @@ export class World {
         // 手柄を立てた指揮官の家に、奪った土地を恩賞として与える
         const hero = this.get(w.battles.filter((b) => b.attackerWon).at(-1)?.cA);
         const hd = hero && hero.alive && hero.rulerOf == null ? this.dyn(hero) : null;
-        if (hd && hd.id !== this.ruler(A)?.dynastyId && taken.length) this._grant(A, taken[0], hd, '戦功の恩賞');
+        // あなたの国なら、奪った土地を誰に与えるかは自分で選ぶ。AI の国は手柄を立てた家に与える
+        if (taken.length && this.playerKingdom?.()?.id === A.id) this._playerGrantDecision(A, taken[0]);
+        else if (hd && hd.id !== this.ruler(A)?.dynastyId && taken.length) this._grant(A, taken[0], hd, '戦功の恩賞');
         for (const d of this.vassals(A)) this._remember(d, 6, '勝ち戦', A);
         for (const d of this.vassals(D)) this._remember(d, -6, '負け戦', D);
         if (!this.provincesOf(D).length) this._fall(D, A);
@@ -1700,6 +1704,8 @@ export class World {
         }
         if (c.rulerOf != null) {
           this.addLog('succession', `${this.pn(c)} が ${this.kn(D)} の王位も手にし、${this.kn(D)} は ${this.kn(this.kingdoms[c.rulerOf])} に統合された。`, [A.id, D.id]);
+          // あなたの国が併合したら、反動を予告する
+          if (this._isMine?.(this.kingdoms[c.rulerOf]) && old) this._news({ icon: '⚠️', title: `${D.name}を併合した。旧王家に気をつけて`, body: `${this.pn(old)}（${this.dyn(old)?.name ?? ''}家）は王位への請求権を持ったまま生きている。${D.name}の諸侯は、新しい主君になじんでいない。`, why: '併合した国の地方は「かつての○○の民」として忠誠が下がり、独立の派閥をつくりやすくなります。旧王家は請求権で取り返しに来ます。', means: '祝宴・恩賞・切り崩しで旧国の諸侯の忠誠を保ち、旧王家の動きに備えましょう。大きくなるほど包囲網も強くなります。', pids: this.provinces.filter((p) => p.ownerId === D.id).map((p) => p.id) });
           this._absorb(D, this.kingdoms[c.rulerOf]);
         } else this._crown(D, c, 'conquest');
       } else this.addLog('war', `${w.name}は ${result === 'defender' ? `${this.kn(D)} の勝利` : '痛み分け'}に終わり、${this.pn(c)} の請求はかなわなかった。${why}`, [A.id, D.id]);

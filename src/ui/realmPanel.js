@@ -66,7 +66,8 @@ export class RealmPanel {
               <td>${b('buy', o.pr.id, `買う −${o.price}`, o.price, `${o.crown ? '王' : `${o.d.name}家`}から${o.pr.name}伯領を買う。売り手は家格の半分を受け取る`)}</td></tr>`,
           )
           .join('')}</tbody></table>` : '<p class="small muted">いま買い取れる伯爵領はありません（売り手は 2 つ以上持つ家だけ）。</p>'}
-      ${king && w.castleTargets().length ? `<div class="small"><b>🏯 城を築く</b>（王領の兵が 30% 増える。国境の地方から）</div><div class="chips small">${w.castleTargets().map((o) => `<span>${esc(o.pr.name)}${o.border ? '<span class="muted">（国境）</span>' : ''}${b('castle', o.pr.id, `−${o.price}`, o.price, `${o.pr.name}に城を築く。この地方の兵が 30% 増える（王領のあいだ）`)}</span>`).join('')}</div>` : ''}
+      ${king ? `<div class="small"><b>📚 官僚を雇う</b>（直轄できる王領 +1。いま ${w.demesneLimit(k)}・官僚 ${k.officials ?? 0}/3）${(k.officials ?? 0) < 3 ? b('official', '', `−${w.officialPrice()}`, w.officialPrice(), '直轄できる王領が 1 つ増え、王領が上限を超えて恩賞で手放すことが減る') : ''}</div>` : ''}
+      ${king && w.castleTargets().length ? `<div class="small"><b>🏯 城を築く</b>（王領の兵が 30% 増える。国境の地方から）</div><div class="chips small">${w.castleTargets().map((o) => `<span>${esc(o.pr.name)}<span class="muted">（${o.border ? '国境・' : ''}兵 ${w.countyLevy(o.pr).toFixed(1)} → ${(w.countyLevy(o.pr) * 1.3).toFixed(1)}千）</span>${b('castle', o.pr.id, `−${o.price}`, o.price, `${o.pr.name}に城を築く。この地方の兵が 30% 増える（王領のあいだ）`)}</span>`).join('')}</div>` : ''}
       ${fabs.length ? `<div class="small"><b>📜 請求権を捏造する</b>（その国に継承戦争を起こせるようになる）</div><div class="chips small">${fabs.map((o) => `<span>${esc(o.t.name)}${o.truce ? `<span class="bad">（休戦中・あと ${o.truce} 年は宣戦できない）</span>` : ''}${b('fab', o.t.id, `−${o.price}`, o.price, `${o.t.name}の王位への請求権を得る（家の財産として、当主が 2 回代わるまで残る）。継承戦争に勝てば王位が手に入る`)}</span>`).join('')}</div>` : ''}
     </div>`;
   }
@@ -218,7 +219,7 @@ export class RealmPanel {
       <h3>王領（${demesne.length} / 直轄できる上限 ${w.demesneLimit(k)}）</h3>
       ${
         mine
-          ? `<div class="chips small">${demesne.map((pr) => `<span><button type="button" class="chip-btn" data-flash="${pr.id}" data-flash-kind="mine" title="地図で光らせる">${esc(pr.name)}</button>${pr.id === k.capital ? '（首都）' : ` <button type="button" class="small" data-grant="${pr.id}" title="この伯爵領を諸侯に与える（相手を選べる）。与えた家の忠誠は上がる">与える</button>`}</span>`).join('')}</div><p class="small muted">土地を与えると、その家の忠誠が上がり兵もよく出すようになります。上限を超えた分は、年に一度、誰に与えるか聞かれます。</p>`
+          ? `<div class="chips small">${demesne.map((pr) => `<span><button type="button" class="chip-btn" data-flash="${pr.id}" data-flash-kind="mine" title="地図で光らせる">${esc(pr.name)}${pr.castle ? '🏯' : ''}</button><span class="muted">兵 ${w.countyLevy(pr).toFixed(1)}千</span>${pr.id === k.capital ? '（首都）' : ` <button type="button" class="small" data-grant="${pr.id}" title="この伯爵領を諸侯に与える（相手を選べる）。与えた家の忠誠は上がる">与える</button>`}</span>`).join('')}</div><p class="small muted">土地を与えると、その家の忠誠が上がり兵もよく出すようになります。上限を超えた分は、年に一度、誰に与えるか聞かれます。</p>`
           : `<p class="small">${demesne.map((pr) => `<button type="button" class="chip-btn" data-flash="${pr.id}" title="地図で光らせる">${esc(pr.name)}</button>${pr.id === k.capital ? '（首都）' : ''}`).join('')}。上限を超えた土地は恩賞として諸侯に与えられる。</p>`
       }
       <h3>諸侯（${vassals.length} 家）</h3>

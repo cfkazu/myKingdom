@@ -391,3 +391,19 @@ test("王の手：継承戦争は +80 まで負けを認めない、捏造した
   w.player.kingLeads = true;
   assert.equal(w.commander(k), w.ruler(k));
 });
+
+test("雪だるまを抑える：請求権は大国ほど高く、官僚で王領の上限が増える", () => {
+  const w = new World({ seed: "snow-1" });
+  const k = w.aliveKingdoms().find((x) => w.neighbors(x).length);
+  w.setPlayer(w.ruler(k).dynastyId);
+  for (const d of [...w.pendingDecisions()]) w.decide(d.id, "none");
+  const t = w.fabricateTargets()[0];
+  assert.equal(t.price, 40 + w.provincesOf(t.t).length * 5 + w.provincesOf(k).length * 3);
+  w.playerDynasty().prestige = 500;
+  const lim = w.demesneLimit(k);
+  w.hireOfficial();
+  assert.equal(w.demesneLimit(k), lim + 1);
+  w.hireOfficial();
+  w.hireOfficial();
+  assert.ok(/3 人/.test(w.hireOfficial()));
+});

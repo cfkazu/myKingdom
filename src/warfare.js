@@ -18,7 +18,7 @@ export const WarfareMixin = {
     const coal = coalition ? this.aliveKingdoms().filter((o) => o !== k && o !== t && !this.allied(o.id, k.id) && !theirs.includes(o.id)).map((o) => o.id) : [];
     // 同盟国は兵の半分で加勢する。加わる見込みは、こちらの同盟国 5 割・相手の同盟国 7.5 割・包囲網 6 割
     const my = this.power(k) + mine.reduce((s, a) => s + pk(a) * 0.5 * 0.5, 0);
-    const their = this.power(t) + theirs.reduce((s, a) => s + pk(a) * 0.5 * 0.75, 0) + coal.reduce((s, a) => s + pk(a) * 0.5 * 0.6, 0);
+    const their = this.power(t) + theirs.reduce((s, a) => s + pk(a) * 0.5 * 0.75, 0) + coal.reduce((s, a) => s + pk(a) * 0.8 * 0.6, 0);
     const ratio = my / Math.max(1, their);
     return {
       ratio,

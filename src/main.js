@@ -83,7 +83,7 @@ class App {
       e.stopPropagation();
       const w = this.world;
       const arg = b.dataset.favorArg === '' ? null : Number(b.dataset.favorArg);
-      const msg = { feast: () => w.feast(), tribute: () => w.tribute(), buy: () => w.buyCounty(arg), fab: () => w.fabricate(arg), castle: () => w.buildCastle(arg) }[b.dataset.favor]?.();
+      const msg = { feast: () => w.feast(), tribute: () => w.tribute(), buy: () => w.buyCounty(arg), fab: () => w.fabricate(arg), castle: () => w.buildCastle(arg), official: () => w.hireOfficial() }[b.dataset.favor]?.();
       if (msg) this.toast(msg);
       this.map.draw();
       this.renderAll();
@@ -392,7 +392,10 @@ class App {
     const amb = next ? `<div class="lands-bar small">🏆 <b>野望：${next.icon} ${next.label}</b>　${w.ambitionProgress(next.key)}<span class="muted">（${next.hint}）</span><span class="stars" title="★＝果たした野望 ${sc.done}/${sc.total} ＋ 血の目標 ${sc.goals}">★${sc.stars}</span></div>` : `<div class="lands-bar small">🏆 すべての野望を果たした！ <span class="stars">★${sc.stars}</span></div>`;
     return amb + purse + ext.join('') + idle + w
       .realmRebellions()
-      .map((war) => `<div class="lands-bar small bad">🔥 <b>内乱中：${war.name}</b>　戦況 ${Math.round(war.score)}（${war.score <= -30 ? '王が優勢' : war.score >= 30 ? '反乱軍が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${war.defenderId}">対処する</button></div>`)
+      .map((war) => {
+        const mine = (war.members ?? []).includes(d.id) ? war.score : -war.score;
+        return `<div class="lands-bar small bad">🔥 <b>内乱中：${war.name}</b>　戦況 ${mine > 0 ? '+' : ''}${Math.round(mine)}（あなたの側から・${war.score <= -30 ? '王が優勢' : war.score >= 30 ? '反乱軍が優勢' : '五分五分'}）<button type="button" class="small" data-gorealm="${war.defenderId}">対処する</button></div>`;
+      })
       .join('');
   }
 

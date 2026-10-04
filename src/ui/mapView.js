@@ -551,6 +551,12 @@ export class MapView {
       this._text(ctx, '♛', c.x, c.y - 12, 17, '#fff5cc');
       if (this.mode !== 'duchy' && this.mode !== 'county') this._text(ctx, k.name, c.x, c.y + 14, 13);
     }
+    // 城を築いた地方
+    for (const pr of w.provinces) {
+      if (!pr.castle) continue;
+      const c = this._provinceCenter(pr.id);
+      this._text(ctx, '🏯', c.x + 12, c.y - 10, 12);
+    }
     if (this.mode === 'duchy') {
       for (const du of w.duchies) {
         const x = (du.cx + 0.5) * CELL;

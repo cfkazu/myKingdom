@@ -108,6 +108,23 @@ export const FavorsMixin = {
     return `${o.pr.name}伯領を買い取った（家格 −${o.price}）。${king ? (o.overLimit ? '王領が上限を超えたので、恩賞で諸侯に与えることになるかもしれない。' : '王領になった。') : duke ? `${o.du.name}公になった！` : ''}`;
   },
 
+  // 官僚を雇う（王だけ）：直轄できる王領が 1 つ増える（3 人まで）
+  officialPrice() {
+    const k = this.playerKingdom();
+    return k ? 40 + (k.officials ?? 0) * 20 : 0;
+  },
+
+  hireOfficial() {
+    const k = this.playerKingdom();
+    if (!k) return null;
+    if ((k.officials ?? 0) >= 3) return '官僚はもう 3 人います。';
+    const price = this.officialPrice();
+    if (!this._spend(price)) return `家格が足りません（${price} 要る）。`;
+    k.officials = (k.officials ?? 0) + 1;
+    this.addLog('event', `${this.pn(this.ruler(k))} は書記官と徴税吏を召し抱えた。`, [k.id]);
+    return `官僚を雇った（家格 −${price}）。直轄できる王領が ${this.demesneLimit(k)} に増えた。`;
+  },
+
   // 城を築ける王領（王だけ）：その地方の兵が 30% 増える
   castleTargets() {
     const k = this.playerKingdom();
@@ -125,7 +142,7 @@ export const FavorsMixin = {
     if (!this._spend(o.price)) return `家格が足りません（${o.price} 要る）。`;
     o.pr.castle = true;
     this.addLog('event', `${this.pn(this.ruler(this.playerKingdom()))} は ${o.pr.name} に城を築いた。`, [o.pr.ownerId]);
-    return `${o.pr.name}に城を築いた（家格 −${o.price}）。この地方の兵が 30% 増える。`;
+    return `${o.pr.name}に城を築いた（家格 −${o.price}）。この地方の兵が ${this.countyLevy(o.pr).toFixed(1)}千になった（+30%）。`;
   },
 
   // いまの家格で買える、いちばんよい伯爵領（帯で知らせる）
@@ -142,7 +159,8 @@ export const FavorsMixin = {
     if (!k || !h) return [];
     return this.neighbors(k)
       .filter((t) => t.alive && !h.claims.includes(t.id))
-      .map((t) => ({ t, price: 40 + this.provincesOf(t).length * 5, truce: this.truceLeft(k.id, t.id) }));
+      // 値段は相手の大きさ＋自国の大きさ（大国ほど、周りの目が厳しく高くつく）
+      .map((t) => ({ t, price: 40 + this.provincesOf(t).length * 5 + this.provincesOf(k).length * 3, truce: this.truceLeft(k.id, t.id) }));
   },
 
   // 休戦の残り年数（0 なら休戦していない）

@@ -65,7 +65,8 @@ export const FeudalMixin = {
 
   demesneLimit(k) {
     const r = this.ruler(k);
-    return 2 + Math.floor((r ? this.stewardship(r) : 30) / 22);
+    // 官僚を雇うと、直轄できる王領が増える
+    return 2 + Math.floor((r ? this.stewardship(r) : 30) / 22) + (k.officials ?? 0);
   },
 
   // その国の諸侯の家（その国に伯爵領を持つ、王家以外の家）
