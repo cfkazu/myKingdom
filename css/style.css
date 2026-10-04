@@ -1370,6 +1370,7 @@ select:focus-visible {
 .cand-btns {
   display: grid;
   gap: 4px;
+  max-width: 170px;
 }
 
 .apt {

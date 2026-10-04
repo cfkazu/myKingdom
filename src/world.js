@@ -1157,7 +1157,8 @@ export class World {
     const wRoyalDaughter = this.kingdoms.some((k) => k.alive && k.rulerId != null && (w.fatherId === k.rulerId || w.motherId === k.rulerId));
     const mLesser = !mHeir && m.rulerOf == null && !this.royalOf(m) && (this.dyn(m)?.prestige ?? 0) < (this.dyn(w)?.prestige ?? 0);
     // あなたの家の方針「娘はみな入婿を迎える」（相手が王や跡継ぎのときは除く）
-    const houseMatri = !!this.player?.allMatri && !this.player.over && w.dynastyId === this.player.dynastyId && m.rulerOf == null && !mHeir;
+    // 家の者にまかせた縁組では、相手の家が息子を出してくれる（跡取りでなく、贈り物なしで済む）ときだけ
+    const houseMatri = !this._explicitMatch && !!this.player?.allMatri && !this.player.over && w.dynastyId === this.player.dynastyId && !this.matriRefusal(m) && this.matriCost(w, m) === 0;
     const matrilineal = m.dynastyId !== w.dynastyId && (forceMatri || houseMatri || (wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
     this._marry(m, w, matrilineal);
     this._bond(m, w, love);

@@ -236,9 +236,10 @@ export class DecisionPanel {
         ? `<div class="small apt">🧬 素質：${apt}${carr.length ? `・<span class="bad">保因者：${esc(carr.join('・'))}</span>` : '・隠れた病の遺伝子なし'}</div>`
         : `<div class="small apt muted">🧬 素質と隠れた遺伝子は、まだわかりません <button type="button" class="small" data-examine="${c.id}" title="家格 ${EXAMINE_COST} を払って、侍医にこの人の血筋を調べさせる">🔍 鑑定する（家格 −${EXAMINE_COST}）</button></div>`;
       // 入婿：女性の当主・娘の相手に、家を継がない男性を迎えるとき
-      // 家の方針で入婿にする（相手が王や跡継ぎでなければ）
-      const autoMatri = !!w.player.allMatri && p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c);
-      const canMatri = !autoMatri && !cost && p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c) && (w.dyn(c)?.prestige ?? 0) <= (w.dyn(p)?.prestige ?? 0) + 5;
+      // 入婿：女性の相手に、家を継がない男性を迎える（相手の家が出してくれるときだけ。格上の家には贈り物が要る）
+      const refuse = p.sex === 'F' ? w.matriRefusal(c) : 'x';
+      const mcost = p.sex === 'F' && !refuse ? w.matriCost(p, c) : 0;
+      const autoMatri = !!w.player.allMatri && p.sex === 'F' && !refuse;
       const perks = [];
       if (c.rulerOf != null) perks.push(`${w.kingdoms[c.rulerOf].name}の君主`);
       else if (royal) perks.push(`${royal.name}の王族（同盟）`);
@@ -268,7 +269,18 @@ export class DecisionPanel {
           })()}
           ${feud ? `<div class="small feud">⚔ 因縁：${richText(w, feud)}。縁組すれば恨みは和らぐ。</div>` : ''}
         </div>
-        <div class="cand-btns">${cost ? `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>口説く（家格 −${cost}）</button>${prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}` : `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">${d.proposal ? '申し込みを受ける' : autoMatri ? '入婿に迎える' : 'この人と'}</button>`}${autoMatri ? `<span class="small muted matri-note">入婿：子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : w.player.allMatri && p.sex === 'F' ? '<span class="small muted matri-note">王・跡継ぎなので嫁ぐ</span>' : ''}${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿に迎える</button><span class="small muted matri-note">子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : ''}</div>
+        <div class="cand-btns">${(() => {
+          const dyn = esc(w.dyn(p)?.name ?? '');
+          // ふつうの縁組（嫁ぐ・嫁を迎える）のボタン
+          const plain = (primary, label) => cost
+            ? `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>${label ?? '口説く'}（家格 −${cost}）</button>${primary && prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}`
+            : `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="${c.id}">${label ?? (d.proposal ? '申し込みを受ける' : 'この人と')}</button>`;
+          const matriBtn = (primary) => `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="matri:${c.id}"${prestige < mcost ? ' disabled title="家格が足りない"' : ''} title="夫が家に入り、子は${dyn}家の名を継ぐ">入婿に迎える${mcost ? `（家格 −${mcost}）` : ''}</button>`;
+          if (autoMatri) return `${matriBtn(true)}${plain(false, '嫁がせる')}<span class="small muted matri-note">入婿：子は${dyn}家を継ぐ${mcost ? '（格上の家なので贈り物が要る）' : ''}</span>`;
+          if (p.sex === 'F' && refuse) return `${plain(true)}${w.player.allMatri ? `<span class="small muted matri-note">${esc(refuse)}なので入婿には来ない（嫁ぐ）</span>` : ''}`;
+          if (p.sex === 'F') return `${plain(true)}${matriBtn(false)}<span class="small muted matri-note">入婿なら子は${dyn}家を継ぐ</span>`;
+          return plain(true);
+        })()}</div>
       </div>`;
     });
     // 同じ時期の縁談は、まとめて順に選ぶ
@@ -278,7 +290,7 @@ export class DecisionPanel {
     return `<div class="decision">
       ${steps}<div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 ${d.proposal ? '縁談の申し込み' : '縁談'}</div><h2>${d.proposal ? `${esc(w.dyn(w.get(d.candidateIds[0]))?.name ?? '')}家から、${who}に縁談の申し込みが来ました` : `${who}の結婚相手を選んでください`}</h2>
       <p class="small muted">相手の家が受けてくれそうな候補です。見た目の能力は育ちも込み。子に伝わるのは🧬素質のほうです。よその家の人の素質と隠れた病の遺伝子は、鑑定するまでわかりません（いまの家格 ${Math.round(w.playerDynasty()?.prestige ?? 0)}）。</p>${this._goalHint(w)}</div></div>
-      <label class="small allmatri"><input type="checkbox" data-allmatri${w.player.allMatri ? ' checked' : ''}> 家の方針：一族の娘は、みな入婿を迎える（子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ。相手が王や跡継ぎのときは嫁ぐ）</label>
+      <label class="small allmatri"><input type="checkbox" data-allmatri${w.player.allMatri ? ' checked' : ''}> 家の方針：一族の娘は、できるだけ入婿を迎える（子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ。相手の家は当主・長男・王位継承順位 3 位以内の男は出さず、格上の家は贈り物を求める。家の者にまかせた縁組では、贈り物なしで来てくれる相手だけ入婿にする）</label>
       <div class="cands">${cards.join('') || '<p class="small">ふさわしい相手が見つかりません。</p>'}</div>
       ${cards.filter((c) => c.includes(' hidden>')).length ? `<p><button type="button" class="small" data-more="${d.id}">ほかの候補も見る（あと ${cards.filter((c) => c.includes(' hidden>')).length} 人）</button></p>` : ''}
       <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">${(p.mAsks ?? 0) >= 2 ? '見送る（次は人物欄の「縁談を探す」から）' : '今は見送る（5 年後にまた）'}</button><button type="button" class="small" data-id="${d.id}" data-choice="never" title="この人には、人物欄の「縁談を探す」を押すまで縁談を出しません">もう縁談は探さない</button>`}</p>

@@ -74,6 +74,34 @@ export const MatchMixin = {
     return cost ? Math.max(8, cost) : 0;
   },
 
+  // 入婿に出さない男：君主・王位継承者・継承順位 3 位まで・家の当主とその長男（理由を返す。出すなら null）
+  matriRefusal(c) {
+    if (!c || c.lowborn || c.gentry) return null;
+    if (c.rulerOf != null) return '君主';
+    if (this.isHeirAnywhere(c)) return '王位継承者';
+    const rk = this.royalOf(c);
+    if (rk && rk.alive && rk.rulerId != null && this.successionLine(rk, 3).includes(c)) return `${rk.name}の継承順位 3 位以内`;
+    const cd = this.dyn(c);
+    const h = cd && !cd.extinct ? this.head(cd) : null;
+    if (!h) return null;
+    if (h === c) return `${cd.name}家の当主`;
+    if (c.sex === 'M' && [c.fatherId, c.motherId].includes(h.id)) {
+      const sons = h.children.map((id) => this.get(id)).filter((x) => x && x.alive && x.sex === 'M' && x.dynastyId === cd.id).sort((a, b) => a.birthYear - b.birthYear || a.id - b.id);
+      if (sons[0] === c) return `${cd.name}家の跡取り（長男）`;
+    }
+    return null;
+  },
+
+  // 入婿に迎える贈り物（家格）：息子を出す側は、こちらがずっと格上でなければ渋る
+  matriCost(p, c) {
+    const cd = this.dyn(c);
+    if (!cd || c.gentry || c.lowborn) return 0;
+    const gap = cd.prestige - (this.dyn(p)?.prestige ?? 0) + 30;
+    let cost = gap > 0 ? 8 + Math.round(gap * 0.3) : 0;
+    if (this.royalOf(c)) cost += 10;
+    return Math.min(50, cost);
+  },
+
   // 縁談の決断をつくる
   _marriageDecision(p, { proposal = null } = {}) {
     let offers;
@@ -163,16 +191,25 @@ export const MatchMixin = {
     const offer = (d.offers ?? []).find((o) => o.id === c.id);
     const hooks = offer?.hooks ?? [];
     const my = this.dyn(p);
-    if (offer && offer.cost > 0) {
-      if (!my || my.prestige < offer.cost) {
+    if (matri && this.matriRefusal(c)) {
+      this.player.decisions.unshift(d);
+      return `${c.name}は${this.matriRefusal(c)}なので、入婿には来ません。`;
+    }
+    // 入婿は、入婿の贈り物（高嶺の花の贈り物とは別）
+    const cost = matri ? this.matriCost(p, c) : (offer?.cost ?? 0);
+    if (cost > 0) {
+      if (!my || my.prestige < cost) {
         // 決断はそのまま残して、選び直せるようにする
         this.player.decisions.unshift(d);
-        return `家格が足りません（${offer.cost} 要る・いま ${Math.round(my?.prestige ?? 0)}）。`;
+        return `家格が足りません（${cost} 要る・いま ${Math.round(my?.prestige ?? 0)}）。`;
       }
-      my.prestige -= offer.cost;
+      my.prestige -= cost;
     }
     const love = hooks.some((h) => h.key === 'love' || h.key === 'friend');
+    // 自分で選んだ縁組は、家の方針より選んだ形を優先する
+    this._explicitMatch = true;
     this._wed(p.sex === 'M' ? p : c, p.sex === 'M' ? c : p, false, matri, love);
+    this._explicitMatch = false;
     const notes = [];
     for (const h of hooks) {
       if (h.key === 'dowry' && my) {
@@ -199,7 +236,7 @@ export const MatchMixin = {
     const bond = p.bond?.kind;
     if (bond === 'love') notes.push(`ふたりは仲睦まじい（${p.bond.why}）`);
     if (bond === 'cold') notes.push(`ふたりの仲は冷ややか（${p.bond.why}）`);
-    if (offer?.cost) notes.unshift(`贈り物に家格 −${offer.cost}`);
+    if (cost) notes.unshift(`${matri ? '入婿の贈り物' : '贈り物'}に家格 −${cost}`);
     matri = matri || (p.sex === 'F' && p.matrilineal);
     return `${matri ? `${c.name}を入婿に迎えた` : `${p.name}と${c.name}の縁談がまとまった`}。${notes.join('・')}`;
   },

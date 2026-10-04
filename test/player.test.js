@@ -447,10 +447,25 @@ test("一族から王が二人：いまの当主を遊び続け、当主が王�
   assert.deepEqual(w.branchKingdoms(), []);
 });
 
-test("家の方針「娘はみな入婿」：一族の娘の縁組は、相手が王や跡継ぎでなければ女系婚になる", () => {
+test("入婿：当主・長男・継承順位の高い男は来ず、格上の家には贈り物が要る。家の方針で娘の縁組が入婿になる", () => {
   const w = new World({ seed: "matri" });
   const d = w.dynasties.find((x) => w.houseRank(x) === "count");
   w.setPlayer(d.id);
+  // 当主と長男は入婿に来ない
+  const other = w.dynasties.find((x) => x !== d && !x.extinct && w.head(x) && w.head(x).sex === "M" && w.head(x).rulerOf == null && !w.royalOf(w.head(x)));
+  const oh = w.head(other);
+  assert.match(w.matriRefusal(oh), /当主/);
+  const sons = oh.children.map((id) => w.get(id)).filter((x) => x.alive && x.sex === "M").sort((a, b) => a.birthYear - b.birthYear);
+  if (sons.length) assert.match(w.matriRefusal(sons[0]), /長男/);
+  if (sons.length > 1 && !w.isHeirAnywhere(sons[1]) && !w.royalOf(sons[1])) assert.equal(w.matriRefusal(sons[1]), null, "次男は出す");
+  // 格上の家ほど贈り物が要る
+  const me = w.head(d);
+  other.prestige = d.prestige + 60;
+  const younger = { ...sons[1] ?? oh, rulerOf: null };
+  assert.ok(w.matriCost(me, younger) > 0, "格上の家は贈り物を求める");
+  other.prestige = d.prestige - 60;
+  if (!w.royalOf(younger)) assert.equal(w.matriCost(me, younger), 0, "格下の家はそのまま出す");
+  // 家の方針：まかせた縁組でも、来てくれる相手なら入婿になる
   w.player.allMatri = true;
   let n = 0;
   let matri = 0;
@@ -460,14 +475,14 @@ test("家の方針「娘はみな入婿」：一族の娘の縁組は、相手�
     for (const id of before) {
       const p = w.get(id);
       if (!p.alive || p.spouseId == null) continue;
-      const m = w.get(p.spouseId);
-      if (m.dynastyId === d.id || m.rulerOf != null) continue;
       n++;
-      if (p.matrilineal) matri++;
+      if (p.matrilineal) {
+        matri++;
+        assert.ok(!/当主|君主/.test(w.matriRefusal(w.get(p.spouseId)) ?? ""), "当主や君主は入婿に来ない");
+      }
     }
     for (const x of [...w.pendingDecisions()]) w.decide(x.id, x.type === "marriage" ? String(x.candidateIds?.[0] ?? "lowborn") : x.type === "foster" ? "home" : "ok");
     if (w.player.over) break;
   }
-  assert.ok(n > 0, "娘が結婚した");
-  assert.ok(matri >= n - 1, `入婿 ${matri}/${n}`);
+  assert.ok(n > 0 && matri > 0, `入婿 ${matri}/${n}`);
 });
