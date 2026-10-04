@@ -187,6 +187,8 @@ export class World {
 
   // 家の当主：その家の生きている大人のうち、男系・年長を優先
   head(d) {
+    // あなたの家の当主は、いま遊んでいる人とその跡継ぎを続ける（年上の一族が別の国の王になっても替わらない）
+    if (this.player && !this.player.over && d.id === this.player.dynastyId && this.player.headId != null) return this._playerHeadNow(d);
     const cached = this.headCache.get(d.id);
     if (cached && cached.alive && cached.dynastyId === d.id) return cached;
     let best = null;
@@ -528,6 +530,7 @@ export class World {
     this._declareWars();
     this._factions();
     this._housekeeping();
+    if (this.player && !this.player.over && !this.playerDynasty().extinct) this._playerHeadTick();
     this._ledgerTick();
     this._playerTick();
     this._goalTick();

@@ -52,8 +52,8 @@ export class DecisionPanel {
     }
     this.el.hidden = false;
     const more = w.pendingDecisions().length - 1;
-    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d), war: () => this._war(w, d), celebrate: () => this._celebrate(w, d) }[d.type]();
-    const label = { celebrate: '🏆 野望', war: '⚔ 戦争', rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
+    const body = { goal: () => this._goal(w, d), event: () => this._event(w, d), marriage: () => this._marriage(w, d), education: () => this._education(w, d), foster: () => this._foster(w, d), grant: () => this._grant(w, d), faction: () => this._faction(w, d), end: () => this._end(w, d), news: () => this._newsCard(w, d), rebellion: () => this._rebellion(w, d), war: () => this._war(w, d), celebrate: () => this._celebrate(w, d), switch: () => this._switch(w, d) }[d.type]();
+    const label = { switch: '👑 当主', celebrate: '🏆 野望', war: '⚔ 戦争', rebellion: '🔥 内乱', news: '📣 報せ', goal: '🎯 目標', event: '📜 出来事', marriage: '💍 縁談', education: '📚 教育', foster: '🏡 養育先', grant: '🏰 恩賞', faction: '🗡️ 派閥', end: '✝️ 終わり' };
     const queue = w
       .pendingDecisions()
       .slice(1)
@@ -360,6 +360,22 @@ export class DecisionPanel {
   }
 
   // ───────── 派閥の誘い ─────────
+
+  // 当主が王でなく、一族のほかの人が王のとき：その王に移るか
+  _switch(w, d) {
+    const p = w.get(d.personId);
+    const h = w.get(d.headId);
+    const k = w.kingdoms[d.kingdomId];
+    return `<div class="decision">
+      <div class="decision-head">${portraitSVG(w, p, 64)}<div><div class="eyebrow">👑 当主を選ぶ</div>
+      <h2>一族の ${personLink(w, p)} が ${kingdomLink(k)} の王です</h2></div></div>
+      <p>いまの当主 ${h ? personLink(w, h) : ''} は王ではありません。どちらを遊びますか。</p>
+      <div class="opts">
+        <button type="button" class="opt" data-id="${d.id}" data-choice="switch"><b>👑 ${esc(p.regnal ?? p.name)} に当主を移す</b><span class="small">${esc(k.name)}の王として遊ぶ（${w.provincesOf(k).length} 地方）。恩賞・宣戦・祝宴などを自分で決める</span></button>
+        <button type="button" class="opt" data-id="${d.id}" data-choice="stay"><b>🏠 ${esc(h?.name ?? '')} のままにする</b><span class="small">${esc(k.name)}は分家の国として、自分では動かさない。この王については、もう聞かない</span></button>
+      </div>
+    </div>`;
+  }
 
   _faction(w, d) {
     const k = w.kingdoms[d.kingdomId];

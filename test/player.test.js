@@ -407,3 +407,36 @@ test("雪だるまを抑える：請求権は大国ほど高く、官僚で王�
   w.hireOfficial();
   assert.ok(/3 人/.test(w.hireOfficial()));
 });
+
+test("一族から王が二人：いまの当主を遊び続け、当主が王でなくなったら、ほかの王に移るか聞く", () => {
+  const w = new World({ seed: "two-kings" });
+  // 一族のもう一人を、別の国の王にする（当主より年上にしておく）
+  const adultKin = (k) => w.living.find((p) => p.alive && p.dynastyId === w.ruler(k).dynastyId && p !== w.ruler(k) && p.rulerOf == null && w.age(p) >= 16);
+  const k1 = w.aliveKingdoms().find((k) => adultKin(k));
+  const king = w.ruler(k1);
+  const kin = adultKin(k1);
+  w.setPlayer(king.dynastyId);
+  const d = w.playerDynasty();
+  kin.birthYear = Math.min(kin.birthYear, king.birthYear - 5);
+  const k2 = w.aliveKingdoms().find((k) => k !== k1);
+  const old = w.ruler(k2);
+  w._endReign(k2, old);
+  w._crown(k2, kin, "inherit");
+  w.step();
+  assert.equal(w.playerHead(), king, "年上の一族が王になっても、当主は替わらない");
+  assert.equal(w.playerKingdom(), k1, "操作するのは当主の国");
+  assert.ok(!w.pendingDecisions().some((x) => x.type === "switch"), "当主が王のあいだは聞かない");
+  // 当主が王位を失う
+  const usurper = w.living.find((p) => p.alive && p.dynastyId !== d.id && p.rulerOf == null && w.age(p) >= 20);
+  w._endReign(k1, king);
+  w._crown(k1, usurper, "usurp");
+  w.step();
+  assert.equal(w.playerHead(), king, "王位を失っても当主のまま");
+  assert.equal(w.playerKingdom(), null);
+  const card = w.pendingDecisions().find((x) => x.type === "switch");
+  assert.ok(card, "ほかの王に移るか聞く");
+  assert.equal(card.personId, kin.id);
+  w.decide(card.id, "switch");
+  assert.equal(w.playerHead(), kin);
+  assert.equal(w.playerKingdom(), k2);
+});

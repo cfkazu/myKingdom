@@ -28,6 +28,7 @@ export const PlayerMixin = {
     const d = this.dynasties[dynId];
     this.player = { dynastyId: dynId, startYear: this.year, decisions: [], nextId: 1, asked: new Map(), joined: null, over: false, peak: this.houseStanding(d), examined: new Set(), achievements: [], goal: null };
     const h = this.head(d);
+    this.player.headId = h?.id ?? null;
     this.addLog('event', `あなたは ${d.name}家の当主 ${h ? this.pn(h) : ''} として歴史に加わった。`, h && h.kingdomId != null ? [h.kingdomId] : []);
     // 小さな家でも、はじめの一手（伯爵領の買い取りなど）に届く家格から始める
     d.prestige = Math.max(d.prestige, 40);
@@ -48,10 +49,67 @@ export const PlayerMixin = {
     return d && !d.extinct ? this.head(d) : null;
   },
 
+  // あなたの国は、当主が王である国（一族のほかの王の国は、分家の国として操作しない）
   playerKingdom() {
     const d = this.playerDynasty();
-    if (!d || this.player.over) return null;
-    return this.kingdoms.find((k) => k.alive && k.rulerId != null && this.ruler(k).dynastyId === d.id) ?? null;
+    if (!d || this.player.over || d.extinct) return null;
+    const h = this.head(d);
+    const k = h && h.rulerOf != null ? this.kingdoms[h.rulerOf] : null;
+    return k && k.alive ? k : null;
+  },
+
+  // 当主：いま遊んでいる人。亡くなるか継承から外れたら、その跡継ぎ
+  _playerHeadNow(d) {
+    const cur = this.get(this.player.headId);
+    if (cur && cur.alive && cur.dynastyId === d.id && !isSetAside(cur)) return cur;
+    return this._playerSuccessor(d, cur);
+  },
+
+  _playerSuccessor(d, prev) {
+    // 王だった当主の王位が一族に残ったなら、その新しい王
+    if (prev && prev.rulerOfEver != null) {
+      const k = this.kingdoms[prev.rulerOfEver];
+      const r = k.alive ? this.ruler(k) : null;
+      // 先の当主が王のまま世を去り（退き）、王位が一族の跡継ぎに渡ったとき
+      const handed = r && r !== prev && k.rulers.at(-2)?.id === prev.id && k.rulers.at(-1)?.id === r.id;
+      if ((r === prev || handed) && r.alive && r.dynastyId === d.id && !isSetAside(r)) return r;
+    }
+    // そうでなければ、先の当主に近い血筋の、年長の大人（ほかの国の王であることは数えない。移るかは聞く）
+    const near = (p) => {
+      if (!prev) return 0;
+      let gen = [p];
+      for (let i = 0; i < 3; i++) {
+        gen = gen.flatMap((x) => [x.fatherId, x.motherId]).filter((id) => id != null).map((id) => this.get(id)).filter(Boolean);
+        if (gen.some((x) => x.id === prev.id)) return 500 - i * 100;
+      }
+      return [p.fatherId, p.motherId].some((id) => id != null && (id === prev.fatherId || id === prev.motherId)) ? 250 : 0;
+    };
+    let best = null;
+    let bestScore = -Infinity;
+    for (const p of this.living) {
+      if (!p.alive || p.dynastyId !== d.id) continue;
+      const a = this.age(p);
+      const s = near(p) + (a >= 16 ? 200 : 0) + (p.sex === 'M' ? 100 : 0) + Math.min(a, 70) - (isSetAside(p) ? 600 : 0);
+      if (s > bestScore) {
+        bestScore = s;
+        best = p;
+      }
+    }
+    return best;
+  },
+
+  // 当主を確定する（毎年）。当主が王でなく、一族のほかの人が王なら、移るか聞く
+  _playerHeadTick() {
+    const d = this.playerDynasty();
+    const h = this.head(d);
+    this.player.headId = h?.id ?? null;
+    if (!h || h.rulerOf != null) return;
+    this.player.declinedKings = this.player.declinedKings ?? [];
+    if (this.player.decisions.some((x) => x.type === 'switch')) return;
+    const kings = this.living
+      .filter((p) => p.alive && p.dynastyId === d.id && p.rulerOf != null && this.kingdoms[p.rulerOf].alive && !isSetAside(p) && !this.player.declinedKings.includes(p.id))
+      .sort((a, b) => this.provincesOf(this.kingdoms[b.rulerOf]).length - this.provincesOf(this.kingdoms[a.rulerOf]).length);
+    if (kings.length) this._decision({ type: 'switch', personId: kings[0].id, kingdomId: kings[0].rulerOf, headId: h.id });
   },
 
   // 家の格：王 > 公爵 > 伯爵 > 無領
@@ -232,6 +290,16 @@ export const PlayerMixin = {
     if (d.type === 'event') return this._resolveEvent(d, choice);
     if (d.type === 'news') return null;
     if (d.type === 'rebellion' || d.type === 'war' || d.type === 'celebrate') return null;
+    if (d.type === 'switch') {
+      const p = this.get(d.personId);
+      if (!p || !p.alive || p.rulerOf == null) return null;
+      if (choice === 'switch') {
+        this.player.headId = p.id;
+        return `${this.kingdoms[p.rulerOf].name}の王 ${p.regnal ?? p.name} を当主として遊びます。`;
+      }
+      this.player.declinedKings = [...(this.player.declinedKings ?? []), p.id];
+      return `当主は ${this.get(d.headId)?.name ?? ''} のままです。${this.kingdoms[p.rulerOf].name}は分家の国として、自分では動かしません。`;
+    }
     if (d.type === 'goal') {
       const o = d.options.find((x) => x.key === choice);
       this.setGoal(o ? o.key : null, o ? o.target : null);
@@ -426,6 +494,8 @@ export const PlayerMixin = {
     if (!this.player || this.player.over) return;
     // 待っているあいだに結婚した・亡くなった人の縁談のカードは片づける
     this.player.decisions = this.player.decisions.filter((x) => x.type !== 'marriage' || (this.get(x.personId)?.alive && this.get(x.personId).spouseId == null));
+    // 王に移るかのカードは、その王が王でなくなったか、当主が王になったら片づける
+    this.player.decisions = this.player.decisions.filter((x) => x.type !== 'switch' || (this.get(x.personId)?.alive && this.get(x.personId).rulerOf != null && this.playerHead()?.rulerOf == null));
     const d = this.playerDynasty();
     if (d.extinct || !this.head(d)) {
       this.player.over = true;
