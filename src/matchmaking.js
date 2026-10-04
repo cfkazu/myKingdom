@@ -95,7 +95,7 @@ export const MatchMixin = {
   // 入婿に迎える贈り物（家格）：息子を出す側は、こちらがずっと格上でなければ渋る
   matriCost(p, c) {
     const cd = this.dyn(c);
-    if (!cd || c.gentry || c.lowborn) return 0;
+    if (!cd || c.gentry || c.lowborn || c.dynastyId === p.dynastyId) return 0;
     const gap = cd.prestige - (this.dyn(p)?.prestige ?? 0) + 30;
     let cost = gap > 0 ? 8 + Math.round(gap * 0.3) : 0;
     if (this.royalOf(c)) cost += 10;
@@ -191,6 +191,8 @@ export const MatchMixin = {
     const offer = (d.offers ?? []).find((o) => o.id === c.id);
     const hooks = offer?.hooks ?? [];
     const my = this.dyn(p);
+    // 同じ家どうしの縁組は、入婿にしなくても子は家名を継ぐ
+    if (c.dynastyId === p.dynastyId) matri = false;
     if (matri && this.matriRefusal(c)) {
       this.player.decisions.unshift(d);
       return `${c.name}は${this.matriRefusal(c)}なので、入婿には来ません。`;
@@ -237,7 +239,7 @@ export const MatchMixin = {
     if (bond === 'love') notes.push(`ふたりは仲睦まじい（${p.bond.why}）`);
     if (bond === 'cold') notes.push(`ふたりの仲は冷ややか（${p.bond.why}）`);
     if (cost) notes.unshift(`${matri ? '入婿の贈り物' : '贈り物'}に家格 −${cost}`);
-    matri = matri || (p.sex === 'F' && p.matrilineal);
+    matri = matri || (p.sex === 'F' && p.matrilineal && c.dynastyId !== p.dynastyId);
     return `${matri ? `${c.name}を入婿に迎えた` : `${p.name}と${c.name}の縁談がまとまった`}。${notes.join('・')}`;
   },
 

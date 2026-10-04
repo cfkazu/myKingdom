@@ -465,6 +465,9 @@ test("入婿：当主・長男・継承順位の高い男は来ず、格上の�
   assert.ok(w.matriCost(me, younger) > 0, "格上の家は贈り物を求める");
   other.prestige = d.prestige - 60;
   if (!w.royalOf(younger)) assert.equal(w.matriCost(me, younger), 0, "格下の家はそのまま出す");
+  // 同じ家の人は入婿にならず、贈り物も要らない
+  const kinsman = w.living.find((x) => x.alive && x.dynastyId === d.id && x.sex === "M" && x !== me);
+  if (kinsman) assert.equal(w.matriCost(me, kinsman), 0);
   // 家の方針：まかせた縁組でも、来てくれる相手なら入婿になる
   w.player.allMatri = true;
   let n = 0;
