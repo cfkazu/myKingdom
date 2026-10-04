@@ -415,7 +415,7 @@ class App {
     if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
     const ks = w.branchKingdoms();
     if (!ks.length) return '';
-    return `<div class="lands-bar small">🌿 <b>分家の国</b>（一族が王。あなたは動かさない）：${ks
+    return `<div class="lands-bar small">🌿 <b>分家の国</b>（一族が王・同盟。あなたは動かさない）：${ks
       .map((k) => {
         const r = w.ruler(k);
         return `<button type="button" class="chip-btn" data-flash="${w.provincesOf(k).map((p) => p.id).join(',')}" data-flash-kind="gain" title="地図で光らせる">${esc(k.name)}（${esc(r.regnal ?? r.name)}・${w.provincesOf(k).length} 地方）</button><button type="button" class="small" data-gorealm="${k.id}">見る</button>`;

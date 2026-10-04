@@ -426,6 +426,7 @@ test("一族から王が二人：いまの当主を遊び続け、当主が王�
   assert.equal(w.playerHead(), king, "年上の一族が王になっても、当主は替わらない");
   assert.equal(w.playerKingdom(), k1, "操作するのは当主の国");
   assert.deepEqual(w.branchKingdoms(), [k2], "もう一つは分家の国");
+  assert.ok(w.allied(k1.id, k2.id), "分家の国とは同盟");
   assert.ok(!w.pendingDecisions().some((x) => x.type === "switch"), "当主が王のあいだは聞かない");
   // 当主が王位を失う
   const usurper = w.living.find((p) => p.alive && p.dynastyId !== d.id && p.rulerOf == null && w.age(p) >= 20);

@@ -1324,6 +1324,15 @@ export class World {
       // 破棄された同盟は、しばらく結び直されない
       if (key && a !== b && a.alive && b.alive && !(this.brokenAlliances?.get(key) > this.year)) this.alliances.add(key);
     }
+    // あなたの家の国と分家の国は、同じ一族の国として同盟する
+    if (this.player && !this.player.over) {
+      const fam = this.aliveKingdoms().filter((k) => k.rulerId != null && this.ruler(k)?.dynastyId === this.player.dynastyId);
+      for (const a of fam)
+        for (const b of fam) {
+          const key = `${a.id}-${b.id}`;
+          if (a.id < b.id && !(this.brokenAlliances?.get(key) > this.year)) this.alliances.add(key);
+        }
+    }
   }
 
   truce(a, b) {

@@ -147,7 +147,7 @@ export class RealmPanel {
     const wars = w.wars.filter((x) => x.attackerId === k.id || x.defenderId === k.id || x.attackerAllies.includes(k.id) || x.defenderAllies.includes(k.id)).slice(-12).reverse();
     return `
       <h2 style="margin-top:16px">${kingdomLink(k)}王国 <span class="small muted">${k.foundedYear}年〜${k.alive ? '' : `${k.endYear}年`}</span></h2>
-      ${w.player && w.branchKingdoms().includes(k) ? `<p class="small hint">🌿 <b>分家の国</b>：あなたの一族の ${personLink(w, r)} が王です。この国はあなたが動かしません（恩賞・宣戦などは王が自分で決めます）。いまの当主が王でなくなったら、この王に当主を移すか聞かれます。</p>` : ''}
+      ${w.player && w.branchKingdoms().includes(k) ? `<p class="small hint">🌿 <b>分家の国</b>：あなたの一族の ${personLink(w, r)} が王です。あなたの国と同盟していて、戦になれば加勢し合います（同盟を破棄すると 30 年は結び直せません）。この国はあなたが動かしません（恩賞・宣戦などは王が自分で決めます）。いまの当主が王でなくなったら、この王に当主を移すか聞かれます。</p>` : ''}
       <p class="small">${LAWS[k.law].label}：${LAWS[k.law].desc}<br>${CUSTOMS[k.custom].label}：${CUSTOMS[k.custom].desc}</p>
       ${
         k.alive && r
