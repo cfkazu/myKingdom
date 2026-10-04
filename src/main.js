@@ -410,6 +410,19 @@ class App {
     return `<div class="lands-bar small">🗺️ <b>あなたの領地 ${mine.length}</b>${duchies.length ? `（${duchies.map((du) => `${du.name}公領`).join('・')}）` : ''}：<button type="button" class="small" data-flash="${mine.map((pr) => pr.id).join(',')}" data-flash-kind="mine">すべて光らせる</button>${mine.map((pr) => `<button type="button" class="chip-btn" data-flash="${pr.id}" data-flash-kind="mine">${pr.name ? label(pr) : ''}</button>`).join('')}</div>`;
   }
 
+  // 分家の国：一族の王がいる、あなたが動かさない国
+  _branchBar(w, d) {
+    if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
+    const ks = w.branchKingdoms();
+    if (!ks.length) return '';
+    return `<div class="lands-bar small">🌿 <b>分家の国</b>（一族が王。あなたは動かさない）：${ks
+      .map((k) => {
+        const r = w.ruler(k);
+        return `<button type="button" class="chip-btn" data-flash="${w.provincesOf(k).map((p) => p.id).join(',')}" data-flash-kind="gain" title="地図で光らせる">${esc(k.name)}（${esc(r.regnal ?? r.name)}・${w.provincesOf(k).length} 地方）</button><button type="button" class="small" data-gorealm="${k.id}">見る</button>`;
+      })
+      .join('')}</div>`;
+  }
+
   _goalBar(w, d) {
     if (!w.player || w.player.dynastyId !== d.id || w.player.over) return '';
     const g = w.goalProgress();
@@ -435,7 +448,7 @@ class App {
       el.querySelector('#unfollow').addEventListener('click', () => this.follow(null));
       return;
     }
-    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._rebelBar(w, d)}${this._landsBar(w, d)}${this._goalBar(w, d)}${
+    el.innerHTML = `<span class="kdot" style="background:${d.color}"></span><b>${w.player && w.player.dynastyId === d.id && !w.player.over ? `👑 あなたの家：${d.name}家（${w.houseStanding(d).label}）` : `📌 ${d.name}家を追っています`}</b><span class="small">${h ? `当主 <a class="plink" data-pid="${h.id}">${h.regnal ?? h.name}</a>${title ? `（${title}）` : ''}・${w.age(h)}歳` : ''}</span><button type="button" id="unfollow" class="small">やめる</button>${this._rebelBar(w, d)}${this._landsBar(w, d)}${this._branchBar(w, d)}${this._goalBar(w, d)}${
       w.player && w.player.dynastyId === d.id && !w.player.over && w.houseStanding(d).rank === 0
         ? '<div class="small hint">⚠️ あなたの家は所領を失いました。王家や大きな家との縁談で請求権や同盟を得るか、家タブから別の家に乗り換えましょう。</div>'
         : ''

@@ -119,13 +119,15 @@ export class RealmPanel {
   render() {
     const w = this.app.world;
     const selId = this.app.selectedKingdom;
+    const pk = w.player ? w.playerKingdom() : null;
+    const branch = new Set(w.player ? w.branchKingdoms() : []);
     const cards = w.aliveKingdoms().map((k) => {
       const r = w.ruler(k);
       const d = r ? w.dyn(r) : null;
       const allies = w.alliesOf(k.id).map((a) => w.kingdoms[a].name);
       const wars = w.activeWars(k.id);
       return `<div class="card${k.id === selId ? ' sel' : ''}" data-kid="${k.id}" style="--kc:${k.color}">
-        <div class="t">${esc(k.name)}王国 <span class="muted small">${w.provincesOf(k).length} 地方・兵力 ${Math.round(w.power(k))}千</span></div>
+        <div class="t">${esc(k.name)}王国 ${k === pk ? '<span class="badge good">あなたの国</span> ' : branch.has(k) ? '<span class="badge">🌿 分家の国</span> ' : ''}<span class="muted small">${w.provincesOf(k).length} 地方・兵力 ${Math.round(w.power(k))}千</span></div>
         <div>${r ? `${r.sex === 'M' ? '王' : '女王'} ${personLink(w, r)}（${w.age(r)}歳）` : '空位'}${k.regentId != null ? `・摂政 ${personLink(w, w.get(k.regentId), { short: true })}` : ''}</div>
         <div class="small muted">${d ? `${esc(d.name)}朝・` : ''}${LAWS[k.law].label}・${CUSTOMS[k.custom].label}${allies.length ? `・同盟：${esc(allies.join('・'))}` : ''}${wars.length ? `・<b style="color:var(--war)">交戦中</b>` : ''}</div>
       </div>`;
@@ -145,6 +147,7 @@ export class RealmPanel {
     const wars = w.wars.filter((x) => x.attackerId === k.id || x.defenderId === k.id || x.attackerAllies.includes(k.id) || x.defenderAllies.includes(k.id)).slice(-12).reverse();
     return `
       <h2 style="margin-top:16px">${kingdomLink(k)}王国 <span class="small muted">${k.foundedYear}年〜${k.alive ? '' : `${k.endYear}年`}</span></h2>
+      ${w.player && w.branchKingdoms().includes(k) ? `<p class="small hint">🌿 <b>分家の国</b>：あなたの一族の ${personLink(w, r)} が王です。この国はあなたが動かしません（恩賞・宣戦などは王が自分で決めます）。いまの当主が王でなくなったら、この王に当主を移すか聞かれます。</p>` : ''}
       <p class="small">${LAWS[k.law].label}：${LAWS[k.law].desc}<br>${CUSTOMS[k.custom].label}：${CUSTOMS[k.custom].desc}</p>
       ${
         k.alive && r

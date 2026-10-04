@@ -58,6 +58,14 @@ export const PlayerMixin = {
     return k && k.alive ? k : null;
   },
 
+  // 分家の国：一族のほかの人が王である国（あなたは動かさない）
+  branchKingdoms() {
+    const d = this.playerDynasty();
+    if (!d || this.player.over || d.extinct) return [];
+    const pk = this.playerKingdom();
+    return this.aliveKingdoms().filter((k) => k !== pk && k.rulerId != null && this.ruler(k)?.dynastyId === d.id);
+  },
+
   // 当主：いま遊んでいる人。亡くなるか継承から外れたら、その跡継ぎ
   _playerHeadNow(d) {
     const cur = this.get(this.player.headId);
