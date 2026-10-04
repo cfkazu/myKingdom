@@ -236,7 +236,9 @@ export class DecisionPanel {
         ? `<div class="small apt">🧬 素質：${apt}${carr.length ? `・<span class="bad">保因者：${esc(carr.join('・'))}</span>` : '・隠れた病の遺伝子なし'}</div>`
         : `<div class="small apt muted">🧬 素質と隠れた遺伝子は、まだわかりません <button type="button" class="small" data-examine="${c.id}" title="家格 ${EXAMINE_COST} を払って、侍医にこの人の血筋を調べさせる">🔍 鑑定する（家格 −${EXAMINE_COST}）</button></div>`;
       // 入婿：女性の当主・娘の相手に、家を継がない男性を迎えるとき
-      const canMatri = !cost && p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c) && (w.dyn(c)?.prestige ?? 0) <= (w.dyn(p)?.prestige ?? 0) + 5;
+      // 家の方針で入婿にする（相手が王や跡継ぎでなければ）
+      const autoMatri = !!w.player.allMatri && p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c);
+      const canMatri = !autoMatri && !cost && p.sex === 'F' && c.rulerOf == null && !w.isHeirAnywhere(c) && (w.dyn(c)?.prestige ?? 0) <= (w.dyn(p)?.prestige ?? 0) + 5;
       const perks = [];
       if (c.rulerOf != null) perks.push(`${w.kingdoms[c.rulerOf].name}の君主`);
       else if (royal) perks.push(`${royal.name}の王族（同盟）`);
@@ -266,7 +268,7 @@ export class DecisionPanel {
           })()}
           ${feud ? `<div class="small feud">⚔ 因縁：${richText(w, feud)}。縁組すれば恨みは和らぐ。</div>` : ''}
         </div>
-        <div class="cand-btns">${cost ? `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>口説く（家格 −${cost}）</button>${prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}` : `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">${d.proposal ? '申し込みを受ける' : 'この人と'}</button>`}${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿に迎える</button><span class="small muted matri-note">子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : ''}</div>
+        <div class="cand-btns">${cost ? `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>口説く（家格 −${cost}）</button>${prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}` : `<button type="button" class="primary" data-id="${d.id}" data-choice="${c.id}">${d.proposal ? '申し込みを受ける' : autoMatri ? '入婿に迎える' : 'この人と'}</button>`}${autoMatri ? `<span class="small muted matri-note">入婿：子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : w.player.allMatri && p.sex === 'F' ? '<span class="small muted matri-note">王・跡継ぎなので嫁ぐ</span>' : ''}${canMatri ? `<button type="button" class="small" data-id="${d.id}" data-choice="matri:${c.id}" title="夫が家に入り、子は${esc(w.dyn(p)?.name ?? '')}家の名を継ぐ">入婿に迎える</button><span class="small muted matri-note">子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ</span>` : ''}</div>
       </div>`;
     });
     // 同じ時期の縁談は、まとめて順に選ぶ
@@ -276,6 +278,7 @@ export class DecisionPanel {
     return `<div class="decision">
       ${steps}<div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 ${d.proposal ? '縁談の申し込み' : '縁談'}</div><h2>${d.proposal ? `${esc(w.dyn(w.get(d.candidateIds[0]))?.name ?? '')}家から、${who}に縁談の申し込みが来ました` : `${who}の結婚相手を選んでください`}</h2>
       <p class="small muted">相手の家が受けてくれそうな候補です。見た目の能力は育ちも込み。子に伝わるのは🧬素質のほうです。よその家の人の素質と隠れた病の遺伝子は、鑑定するまでわかりません（いまの家格 ${Math.round(w.playerDynasty()?.prestige ?? 0)}）。</p>${this._goalHint(w)}</div></div>
+      <label class="small allmatri"><input type="checkbox" data-allmatri${w.player.allMatri ? ' checked' : ''}> 家の方針：一族の娘は、みな入婿を迎える（子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ。相手が王や跡継ぎのときは嫁ぐ）</label>
       <div class="cands">${cards.join('') || '<p class="small">ふさわしい相手が見つかりません。</p>'}</div>
       ${cards.filter((c) => c.includes(' hidden>')).length ? `<p><button type="button" class="small" data-more="${d.id}">ほかの候補も見る（あと ${cards.filter((c) => c.includes(' hidden>')).length} 人）</button></p>` : ''}
       <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">${(p.mAsks ?? 0) >= 2 ? '見送る（次は人物欄の「縁談を探す」から）' : '今は見送る（5 年後にまた）'}</button><button type="button" class="small" data-id="${d.id}" data-choice="never" title="この人には、人物欄の「縁談を探す」を押すまで縁談を出しません">もう縁談は探さない</button>`}</p>
@@ -366,10 +369,17 @@ export class DecisionPanel {
     const p = w.get(d.personId);
     const h = w.get(d.headId);
     const k = w.kingdoms[d.kingdomId];
+    // いまの当主から見た続柄
+    const rel = !h ? '一族' : [p.fatherId, p.motherId].includes(h.id) ? '子' : [h.fatherId, h.motherId].includes(p.id) ? '親' : p.fatherId != null && (p.fatherId === h.fatherId || p.motherId === h.motherId) ? 'きょうだい' : [p.fatherId, p.motherId].map((id) => w.get(id)).some((x) => x && [x.fatherId, x.motherId].includes(h.id)) ? '孫' : '一族';
+    const myPow = Math.round(w.power(k));
+    const age = w.age(p);
     return `<div class="decision">
       <div class="decision-head">${portraitSVG(w, p, 64)}<div><div class="eyebrow">👑 当主を選ぶ</div>
       <h2>一族の ${personLink(w, p)} が ${kingdomLink(k)} の王です</h2></div></div>
-      <p>いまの当主 ${h ? personLink(w, h) : ''} は王ではありません。どちらを遊びますか。</p>
+      <p>いまの当主 ${h ? `${personLink(w, h)}（${w.age(h)}歳）` : ''} は王ではありません。どちらを遊びますか。</p>
+      <dl class="kv small"><dt>王</dt><dd>${esc(p.regnal ?? p.name)}・${age}歳・当主の${rel}${age < 16 ? '・<span class="bad">未成年（成人まで摂政が政を行う）</span>' : ''}</dd>
+        <dt>国</dt><dd>${esc(k.name)}・${w.provincesOf(k).length} 地方・兵力 ${myPow}千・王領 ${w.demesneOf(k).length}${w.activeWars(k.id).length ? '・<span class="bad">交戦中</span>' : ''}</dd>
+        <dt>跡継ぎ</dt><dd>${(() => { const hr = k.heirId != null ? w.get(k.heirId) : null; return hr ? `${esc(hr.name)}（${w.age(hr)}歳${hr.dynastyId === p.dynastyId ? '' : '・<span class="bad">よその家</span>'}）` : '<span class="bad">いない</span>'; })()}</dd></dl>
       <div class="opts">
         <button type="button" class="opt" data-id="${d.id}" data-choice="switch"><b>👑 ${esc(p.regnal ?? p.name)} に当主を移す</b><span class="small">${esc(k.name)}の王として遊ぶ（${w.provincesOf(k).length} 地方）。恩賞・宣戦・祝宴などを自分で決める</span></button>
         <button type="button" class="opt" data-id="${d.id}" data-choice="stay"><b>🏠 ${esc(h?.name ?? '')} のままにする</b><span class="small">${esc(k.name)}は分家の国として、自分では動かさない。この王については、もう聞かない</span></button>

@@ -1701,3 +1701,5 @@ select:focus-visible {
 #jump-decision[hidden] {
   display: none;
 }
+.allmatri{display:block;margin:4px 0 8px}
+.allmatri input{vertical-align:middle;margin-right:4px}

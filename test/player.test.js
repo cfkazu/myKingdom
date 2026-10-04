@@ -437,9 +437,37 @@ test("一族から王が二人：いまの当主を遊び続け、当主が王�
   assert.equal(w.playerKingdom(), null);
   const card = w.pendingDecisions().find((x) => x.type === "switch");
   assert.ok(card, "ほかの王に移るか聞く");
+  const types = w.pendingDecisions().map((x) => x.type);
+  assert.ok(types.indexOf("switch") > types.indexOf("news"), "報せのあとに聞く");
   assert.equal(card.personId, kin.id);
   w.decide(card.id, "switch");
   assert.equal(w.playerHead(), kin);
+  assert.equal(w.dynasties[d.id].headId, kin.id, "当主の交代はすぐ記録される");
   assert.equal(w.playerKingdom(), k2);
   assert.deepEqual(w.branchKingdoms(), []);
+});
+
+test("家の方針「娘はみな入婿」：一族の娘の縁組は、相手が王や跡継ぎでなければ女系婚になる", () => {
+  const w = new World({ seed: "matri" });
+  const d = w.dynasties.find((x) => w.houseRank(x) === "count");
+  w.setPlayer(d.id);
+  w.player.allMatri = true;
+  let n = 0;
+  let matri = 0;
+  for (let i = 0; i < 60; i++) {
+    const before = new Set(w.living.filter((p) => p.alive && p.dynastyId === d.id && p.sex === "F" && p.spouseId == null).map((p) => p.id));
+    w.step();
+    for (const id of before) {
+      const p = w.get(id);
+      if (!p.alive || p.spouseId == null) continue;
+      const m = w.get(p.spouseId);
+      if (m.dynastyId === d.id || m.rulerOf != null) continue;
+      n++;
+      if (p.matrilineal) matri++;
+    }
+    for (const x of [...w.pendingDecisions()]) w.decide(x.id, x.type === "marriage" ? String(x.candidateIds?.[0] ?? "lowborn") : x.type === "foster" ? "home" : "ok");
+    if (w.player.over) break;
+  }
+  assert.ok(n > 0, "娘が結婚した");
+  assert.ok(matri >= n - 1, `入婿 ${matri}/${n}`);
 });

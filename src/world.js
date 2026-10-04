@@ -538,6 +538,7 @@ export class World {
     this._fosterTick();
     this._ambitionTick();
     this._flushNews();
+    this._playerSwitchAsk();
     this._record();
   }
 
@@ -1155,7 +1156,9 @@ export class World {
     // 王の娘が格下の家（王家でない家）に嫁ぐときも、子は王家の名を継ぐ
     const wRoyalDaughter = this.kingdoms.some((k) => k.alive && k.rulerId != null && (w.fatherId === k.rulerId || w.motherId === k.rulerId));
     const mLesser = !mHeir && m.rulerOf == null && !this.royalOf(m) && (this.dyn(m)?.prestige ?? 0) < (this.dyn(w)?.prestige ?? 0);
-    const matrilineal = m.dynastyId !== w.dynastyId && (forceMatri || (wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
+    // あなたの家の方針「娘はみな入婿を迎える」（相手が王や跡継ぎのときは除く）
+    const houseMatri = !!this.player?.allMatri && !this.player.over && w.dynastyId === this.player.dynastyId && m.rulerOf == null && !mHeir;
+    const matrilineal = m.dynastyId !== w.dynastyId && (forceMatri || houseMatri || (wHeir && !mHeir) || (m.lowborn && !w.lowborn) || (wRoyalDaughter && mLesser));
     this._marry(m, w, matrilineal);
     this._bond(m, w, love);
     this.stats.marriages++;

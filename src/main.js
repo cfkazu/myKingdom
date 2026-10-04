@@ -97,6 +97,14 @@ class App {
       this.toast(this.world.player.kingLeads ? '王が自ら出陣する。兵の士気が上がるが、戦死の恐れがある。' : '王は後方にとどまり、指揮は家臣に任せる。');
       this.renderAll();
     });
+    // 家の方針：娘はみな入婿を迎える
+    document.addEventListener('change', (e) => {
+      const b = e.target.closest('[data-allmatri]');
+      if (!b || !this.world.player) return;
+      this.world.player.allMatri = b.checked;
+      this.toast(b.checked ? '一族の娘は、これからみな入婿を迎える。子は家名を継ぐ。' : '娘の縁組は、ふつうのしきたりに戻した（多くは嫁ぐ）。');
+      this.renderAll();
+    });
     // 他国との戦争の手と、同盟の破棄
     document.addEventListener('click', (e) => {
       const b = e.target.closest('[data-war-act],[data-break]');

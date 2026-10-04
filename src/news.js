@@ -177,8 +177,8 @@ export const NewsMixin = {
     this._news({
       icon: '🕯',
       title: `当主が代わった：${h.regnal ?? h.name}（${age}歳）`,
-      body: `${this.pn(prev)} が${prev.alive ? '退き' : `${prev.deathYear}年に世を去り（${prev.cause}）`}、${rel}にあたる ${this.pn(h)} が${d.name}家を継いだ。${prev.epitaph ? `墓碑には「${prev.epitaph}」と刻まれた。` : ''}`,
-      why: pk ? '王家の当主は、王国の継承法に従って王位とともに継がれます。' : '当主は、家の生きている大人のうち、男系・年長の人が優先されます。継承から外した人は継ぎません。',
+      body: this._switching ? `当主の座を、${this.kingdoms[h.rulerOf]?.name ?? ''}の王 ${this.pn(h)} に移した。${this.pn(prev)} は一族の一人として残る。` : `${this.pn(prev)} が${prev.alive ? '退き' : `${prev.deathYear}年に世を去り（${prev.cause}）`}、${rel}にあたる ${this.pn(h)} が${d.name}家を継いだ。${prev.epitaph ? `墓碑には「${prev.epitaph}」と刻まれた。` : ''}`,
+      why: this._switching ? '「当主を選ぶ」で、一族の王に当主を移しました。' : pk ? '王だった当主の跡は、王位を継いだ一族の人が当主も継ぎます。' : '当主は、先の当主に近い血筋（子・孫・きょうだい）の大人が、男系・年長の順に継ぎます。継承から外した人は継ぎません。',
       means: `${age < 16 ? 'まだ幼く、成人まではほかの人が政を行います。' : ''}これからは ${h.name} として決断します。${pk ? `${pk.name}は ${this.provincesOf(pk).length} 地方、王領 ${this.demesneOf(pk).length}。` : lands.length ? `所領（${lands.map((p) => p.name).join('・')}）はそのまま引き継がれます。` : ''}`,
       flashKind: 'mine',
       pids: pk ? this.demesneOf(pk).map((p) => p.id) : lands.map((p) => p.id),
@@ -195,6 +195,12 @@ export const NewsMixin = {
   // あなたの国の王が替わった（王朝が替わったとき）
   _newsNewKing(k, p, how) {
     if (!this._isMine(k) && !this.isPlayerHouse(p)) return;
+    if (this.isPlayerHouse(p) && this.playerHead() !== p) {
+      // 当主でない一族が王になった：分家の国（当主が王でなければ、移るか聞く）
+      const h = this.playerHead();
+      this._news({ icon: '🌿', title: `一族の ${p.regnal ?? p.name} が ${k.name} の王位に就いた`, body: `${this.pn(p)} が王になった。`, why: { usurp: '反乱に勝って王位を奪いました。', conquest: '継承戦争に勝ちました。', independence: '独立を勝ち取りました。', elected: '諸侯の選挙で選ばれました。' }[how] ?? '継承によるものです。', means: h && h.rulerOf != null ? `${k.name}は「分家の国」になります。あなたの国と同盟し、戦では加勢し合いますが、あなたは動かしません（あなたは引き続き ${h.name} として遊びます）。` : `いまの当主 ${h?.name ?? ''} は王ではないので、この王に当主を移すか、このあと聞きます。`, pids: [k.capital] });
+      return;
+    }
     if (this.isPlayerHouse(p)) {
       this._news({ icon: '👑', title: `あなたの家が ${k.name} の王位に就いた`, body: `${this.pn(p)} が王になった。`, why: { usurp: '反乱に勝って王位を奪いました。', conquest: '継承戦争に勝ちました。', independence: '独立を勝ち取りました。', elected: '諸侯の選挙で選ばれました。' }[how] ?? '継承によるものです。', means: 'これからは王として、恩賞・宣戦・没収を自分で決めます。諸侯の忠誠に気をつけて。', pids: [k.capital] });
       return;

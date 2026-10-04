@@ -200,6 +200,7 @@ export const MatchMixin = {
     if (bond === 'love') notes.push(`ふたりは仲睦まじい（${p.bond.why}）`);
     if (bond === 'cold') notes.push(`ふたりの仲は冷ややか（${p.bond.why}）`);
     if (offer?.cost) notes.unshift(`贈り物に家格 −${offer.cost}`);
+    matri = matri || (p.sex === 'F' && p.matrilineal);
     return `${matri ? `${c.name}を入婿に迎えた` : `${p.name}と${c.name}の縁談がまとまった`}。${notes.join('・')}`;
   },
 

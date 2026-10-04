@@ -106,11 +106,17 @@ export const PlayerMixin = {
     return best;
   },
 
-  // 当主を確定する（毎年）。当主が王でなく、一族のほかの人が王なら、移るか聞く
+  // 当主を確定する（毎年）
   _playerHeadTick() {
-    const d = this.playerDynasty();
-    const h = this.head(d);
+    const h = this.head(this.playerDynasty());
     this.player.headId = h?.id ?? null;
+  },
+
+  // 当主が王でなく、一族のほかの人が王なら、移るか聞く（その年の報せのあとに出す）
+  _playerSwitchAsk() {
+    if (!this.player || this.player.over) return;
+    const d = this.playerDynasty();
+    const h = d.extinct ? null : this.head(d);
     if (!h || h.rulerOf != null) return;
     this.player.declinedKings = this.player.declinedKings ?? [];
     if (this.player.decisions.some((x) => x.type === 'switch')) return;
@@ -303,6 +309,11 @@ export const PlayerMixin = {
       if (!p || !p.alive || p.rulerOf == null) return null;
       if (choice === 'switch') {
         this.player.headId = p.id;
+        // 当主の交代をすぐ記録して知らせる
+        this._switching = true;
+        this._ledgerTick();
+        this._switching = false;
+        this._flushNews();
         return `${this.kingdoms[p.rulerOf].name}の王 ${p.regnal ?? p.name} を当主として遊びます。`;
       }
       this.player.declinedKings = [...(this.player.declinedKings ?? []), p.id];
