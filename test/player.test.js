@@ -489,3 +489,27 @@ test("入婿：当主・長男・継承順位の高い男は来ず、格上の�
   }
   assert.ok(n > 0 && matri > 0, `入婿 ${matri}/${n}`);
 });
+
+test("申し込みで入婿にすると、手土産はなくなり、入婿の贈り物は半分", () => {
+  let done = false;
+  for (let k = 0; k < 20 && !done; k++) {
+    const w = new World({ seed: "prop-matri" + k });
+    const d = w.dynasties.find((x) => w.living.some((p) => p.alive && p.dynastyId === x.id && p.sex === "F" && p.spouseId == null && w.age(p) >= 14));
+    if (!d) continue;
+    w.setPlayer(d.id);
+    const f = w.living.find((x) => x.alive && x.dynastyId === d.id && x.sex === "F" && x.spouseId == null && w.age(x) >= 14);
+    const groom = w.living.find((x) => x.alive && x.sex === "M" && x.spouseId == null && w.age(x) >= 16 && x.dynastyId !== d.id && w.dyn(x) && !x.lowborn && !x.gentry && !w.matriRefusal(x));
+    if (!groom) continue;
+    d.prestige = 200;
+    w.dyn(groom).prestige = 260;
+    const full = w.matriCost(f, groom);
+    w.player.decisions = [];
+    w._decision({ type: "marriage", personId: f.id, candidateIds: [groom.id], offers: [{ id: groom.id, hooks: [{ key: "dowry", amount: 10, text: "" }], cost: 0 }], proposal: true });
+    w.decide(w.pendingDecisions()[0].id, "matri:" + groom.id);
+    assert.ok(full > 0);
+    assert.equal(d.prestige, 200 - Math.ceil(full / 2), "手土産なし・贈り物は半分");
+    assert.ok(f.matrilineal);
+    done = true;
+  }
+  assert.ok(done, "試せる縁談があった");
+});

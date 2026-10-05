@@ -239,7 +239,9 @@ export class DecisionPanel {
       // 入婿：女性の相手に、家を継がない男性を迎える（相手の家が出してくれるときだけ。格上の家には贈り物が要る）
       const sameHouse = c.dynastyId === p.dynastyId;
       const refuse = p.sex === 'F' && !sameHouse ? w.matriRefusal(c) : 'x';
-      const mcost = p.sex === 'F' && !refuse ? w.matriCost(p, c) : 0;
+      const mcost = p.sex === 'F' && !refuse ? w.matriPrice(d, p, c) : 0;
+      // 入婿にすると取り下げられる手土産・持参金
+      const lostDowry = (offer?.hooks ?? []).find((h) => h.key === 'dowry')?.amount ?? 0;
       const autoMatri = !!w.player.allMatri && p.sex === 'F' && !refuse;
       const perks = [];
       if (c.rulerOf != null) perks.push(`${w.kingdoms[c.rulerOf].name}の君主`);
@@ -276,7 +278,7 @@ export class DecisionPanel {
           const plain = (primary, label) => cost
             ? `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="${c.id}"${prestige < cost ? ' disabled title="家格が足りない"' : ''}>${label ?? '口説く'}（家格 −${cost}）</button>${primary && prestige < cost ? `<span class="small bad odds">あと ${Math.ceil(cost - prestige)} 足りない</span>` : ''}`
             : `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="${c.id}">${label ?? (d.proposal ? '申し込みを受ける' : 'この人と')}</button>`;
-          const matriBtn = (primary) => `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="matri:${c.id}"${prestige < mcost ? ' disabled title="家格が足りない"' : ''} title="夫が家に入り、子は${dyn}家の名を継ぐ">入婿に迎える${mcost ? `（家格 −${mcost}）` : ''}</button>`;
+          const matriBtn = (primary) => `<button type="button" class="${primary ? 'primary' : 'small'}" data-id="${d.id}" data-choice="matri:${c.id}"${prestige < mcost ? ' disabled title="家格が足りない"' : ''} title="夫が家に入り、子は${dyn}家の名を継ぐ">入婿に迎える${mcost ? `（家格 −${mcost}${d.proposal ? '・申し込みなので半分' : ''}）` : ''}</button>${lostDowry ? `<span class="small muted matri-note">入婿にすると、${d.proposal ? '手土産' : '持参金'}（家格 +${lostDowry}）はなくなる</span>` : ''}`;
           if (autoMatri) return `${matriBtn(true)}${plain(false, '嫁がせる')}<span class="small muted matri-note">入婿：子は${dyn}家を継ぐ${mcost ? '（格上の家なので贈り物が要る）' : ''}</span>`;
           if (sameHouse) return `${plain(true)}${p.sex === 'F' ? `<span class="small muted matri-note">同じ${dyn}家どうし：子は${dyn}家を継ぐ</span>` : ''}`;
           if (p.sex === 'F' && refuse) return `${plain(true)}${w.player.allMatri ? `<span class="small muted matri-note">${esc(refuse)}なので入婿には来ない（嫁ぐ）</span>` : ''}`;

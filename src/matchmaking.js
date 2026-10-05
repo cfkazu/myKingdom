@@ -102,6 +102,12 @@ export const MatchMixin = {
     return Math.min(50, cost);
   },
 
+  // この縁談で入婿に迎える贈り物：向こうからの申し込みなら半分（縁を望んで来ているので、息子を出す渋りは小さい）
+  matriPrice(d, p, c) {
+    const n = this.matriCost(p, c);
+    return d?.proposal ? Math.ceil(n / 2) : n;
+  },
+
   // 縁談の決断をつくる
   _marriageDecision(p, { proposal = null } = {}) {
     let offers;
@@ -198,7 +204,7 @@ export const MatchMixin = {
       return `${c.name}は${this.matriRefusal(c)}なので、入婿には来ません。`;
     }
     // 入婿は、入婿の贈り物（高嶺の花の贈り物とは別）
-    const cost = matri ? this.matriCost(p, c) : (offer?.cost ?? 0);
+    const cost = matri ? this.matriPrice(d, p, c) : (offer?.cost ?? 0);
     if (cost > 0) {
       if (!my || my.prestige < cost) {
         // 決断はそのまま残して、選び直せるようにする
@@ -214,7 +220,8 @@ export const MatchMixin = {
     this._explicitMatch = false;
     const notes = [];
     for (const h of hooks) {
-      if (h.key === 'dowry' && my) {
+      // 入婿にするなら、手土産・持参金は取り下げられる（相手の家の条件を断って、こちらの条件に変えるので）
+      if (h.key === 'dowry' && my && !matri) {
         my.prestige += h.amount;
         notes.push(`家格 +${h.amount}`);
       }
