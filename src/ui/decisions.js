@@ -294,7 +294,8 @@ export class DecisionPanel {
     return `<div class="decision">
       ${steps}<div class="decision-head">${portraitSVG(w, p, 56)}<div><div class="eyebrow">💍 ${d.proposal ? '縁談の申し込み' : '縁談'}</div><h2>${d.proposal ? `${esc(w.dyn(w.get(d.candidateIds[0]))?.name ?? '')}家から、${who}に縁談の申し込みが来ました` : `${who}の結婚相手を選んでください`}</h2>
       <p class="small muted">相手の家が受けてくれそうな候補です。見た目の能力は育ちも込み。子に伝わるのは🧬素質のほうです。よその家の人の素質と隠れた病の遺伝子は、鑑定するまでわかりません（いまの家格 ${Math.round(w.playerDynasty()?.prestige ?? 0)}）。</p>${this._goalHint(w)}</div></div>
-      <label class="small allmatri"><input type="checkbox" data-allmatri${w.player.allMatri ? ' checked' : ''}> 家の方針：一族の娘は、できるだけ入婿を迎える（子は${esc(w.dyn(p)?.name ?? '')}家を継ぐ。相手の家は当主・長男・王位継承順位 3 位以内の男は出さず、格上の家は贈り物を求める。家の者にまかせた縁組では、贈り物なしで来てくれる相手だけ入婿にする）</label>
+      <div class="allmatri small"><label><input type="checkbox" data-allmatri${w.player.allMatri ? ' checked' : ''}> 家の方針：一族の娘は、できるだけ入婿を迎える</label>
+        <details><summary>くわしく</summary>入婿なら子は${esc(w.dyn(p)?.name ?? '')}家を継ぎます。相手の家は、当主・長男・王位継承順位 3 位以内の男は出しません。格上の家は贈り物（家格）を求めます（こちらの家格の 3 割まで。申し込みなら半分、手土産はなし）。家の者にまかせた縁組では、贈り物なしで来てくれる相手だけ入婿にします。</details></div>
       <div class="cands">${cards.join('') || '<p class="small">ふさわしい相手が見つかりません。</p>'}</div>
       ${cards.filter((c) => c.includes(' hidden>')).length ? `<p><button type="button" class="small" data-more="${d.id}">ほかの候補も見る（あと ${cards.filter((c) => c.includes(' hidden>')).length} 人）</button></p>` : ''}
       <p class="choices">${d.proposal ? `<button type="button" data-id="${d.id}" data-choice="later">お断りする</button>` : `<button type="button" data-id="${d.id}" data-choice="lowborn">平民の出の相手を迎える</button><button type="button" data-id="${d.id}" data-choice="later">${(p.mAsks ?? 0) >= 2 ? '見送る（次は人物欄の「縁談を探す」から）' : '今は見送る（5 年後にまた）'}</button><button type="button" class="small" data-id="${d.id}" data-choice="never" title="この人には、人物欄の「縁談を探す」を押すまで縁談を出しません">もう縁談は探さない</button>`}</p>

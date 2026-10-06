@@ -1703,4 +1703,11 @@ select:focus-visible {
   display: none;
 }
 .allmatri{display:block;margin:4px 0 8px}
-.allmatri input{vertical-align:middle;margin-right:4px}
+.allmatri label{display:inline-flex;align-items:center;gap:6px;min-height:32px;cursor:pointer}
+.allmatri input{width:20px;height:20px;margin:0}
+.allmatri details{margin-left:26px;color:var(--text-3)}
+.allmatri summary{cursor:pointer}
+@media (max-width: 600px){
+  .cand-btns{grid-column:1 / -1;max-width:none;grid-template-columns:1fr 1fr}
+  .cand-btns .matri-note,.cand-btns .odds{grid-column:1 / -1}
+}

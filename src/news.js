@@ -31,7 +31,8 @@ export const NewsMixin = {
     const buf = this._newsBuf;
     this._newsBuf = [];
     if (!buf || !buf.length || !this.player || this.player.over) return;
-    const items = buf.map(({ merge, ...x }) => x);
+    // 年の終わりの状態で書く文（同じ年のうちに状況が変わることがあるので）
+    const items = buf.map(({ merge, late, ...x }) => (late ? { ...x, ...late() } : x));
     const open = this.player.decisions.find((d) => d.type === 'news');
     if (open) open.items.push(...items);
     else this._decision({ type: 'news', items });
@@ -197,8 +198,13 @@ export const NewsMixin = {
     if (!this._isMine(k) && !this.isPlayerHouse(p)) return;
     if (this.isPlayerHouse(p) && this.playerHead() !== p) {
       // 当主でない一族が王になった：分家の国（当主が王でなければ、移るか聞く）
-      const h = this.playerHead();
-      this._news({ icon: '🌿', title: `一族の ${p.regnal ?? p.name} が ${k.name} の王位に就いた`, body: `${this.pn(p)} が王になった。`, why: { usurp: '反乱に勝って王位を奪いました。', conquest: '継承戦争に勝ちました。', independence: '独立を勝ち取りました。', elected: '諸侯の選挙で選ばれました。' }[how] ?? '継承によるものです。', means: h && h.rulerOf != null ? `${k.name}は「分家の国」になります。あなたの国と同盟し、戦では加勢し合いますが、あなたは動かしません（あなたは引き続き ${h.name} として遊びます）。` : `いまの当主 ${h?.name ?? ''} は王ではないので、この王に当主を移すか、このあと聞きます。`, pids: [k.capital] });
+      const means = () => {
+        const h = this.playerHead();
+        if (h === p) return { means: `${p.name}はあなたの家の当主です。これからは ${k.name}の王として決断します。` };
+        if (p.rulerOf !== k.id) return { means: `${p.name}はもう${k.name}の王ではありません。` };
+        return { means: h && h.rulerOf != null ? `${k.name}は「分家の国」になります。あなたの国と同盟し、戦では加勢し合いますが、あなたは動かしません（あなたは引き続き ${h.name} として遊びます）。` : `いまの当主 ${h?.name ?? ''} は王ではないので、この王に当主を移すか、このあと聞きます。` };
+      };
+      this._news({ icon: '🌿', title: `一族の ${p.regnal ?? p.name} が ${k.name} の王位に就いた`, body: `${this.pn(p)} が王になった。`, why: { usurp: '反乱に勝って王位を奪いました。', conquest: '継承戦争に勝ちました。', independence: '独立を勝ち取りました。', elected: '諸侯の選挙で選ばれました。' }[how] ?? '継承によるものです。', means: '', late: means, pids: [k.capital] });
       return;
     }
     if (this.isPlayerHouse(p)) {

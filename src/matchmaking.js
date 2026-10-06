@@ -99,7 +99,9 @@ export const MatchMixin = {
     const gap = cd.prestige - (this.dyn(p)?.prestige ?? 0) + 30;
     let cost = gap > 0 ? 8 + Math.round(gap * 0.3) : 0;
     if (this.royalOf(c)) cost += 10;
-    return Math.min(50, cost);
+    // 小さな家にも手が届くように、贈り物はこちらの家格の 3 割まで（最低 8）
+    if (!cost) return 0;
+    return Math.min(50, cost, Math.max(8, Math.round((this.dyn(p)?.prestige ?? 0) * 0.3)));
   },
 
   // この縁談で入婿に迎える贈り物：向こうからの申し込みなら半分（縁を望んで来ているので、息子を出す渋りは小さい）
